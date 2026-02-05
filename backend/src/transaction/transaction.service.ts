@@ -16,6 +16,17 @@ export class TransactionService {
     };
   }
 
+  // Common Router methods for swapping to ETH
+  private readonly routerAbi = [
+    'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)',
+    'function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)',
+    'function swapETHForExactTokens(uint amountOut, address[] path, address to, uint deadline)',
+    'function swapExactETHForTokens(uint amountOutMin, address[] path, address to, uint deadline)',
+    'function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] path, address to, uint deadline)',
+    'function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] path, address to, uint deadline)'
+  ];
+  private readonly routerInterface = new ethers.Interface(this.routerAbi);
+
   async getTransactionFlow(chain: string, hash: string) {
     const provider = this.providers[chain.toLowerCase()];
     if (!provider) {
@@ -55,8 +66,37 @@ export class TransactionService {
       }
 
       // 2. Parse Logs for ERC20 Transfers via helper
-      // 2. Parse Logs for ERC20 Transfers via helper
-      await this.parseTokens(receipt, nodes, edges, provider);
+      // Try to decode Input Data to find intended recipient of ETH (for Router swaps)
+      let decodedRecipient: string | null = null;
+      try {
+          const decoded = this.routerInterface.parseTransaction({ data: tx.data });
+          if (decoded && decoded.args) {
+              // 'to' is usually the 2nd or 3rd argument, but we can look for it by name if available, or just index.
+              // In V2 Router args are positional. 
+              // swapExactTokensForETH -> args[3] is 'to'
+              // but ethers decodeResult is array-like with named props.
+              // Let's iterate args to find an address that is NOT the sender/contract if possible, or specifically check common ABI positions.
+              // Simple heuristic: Most V2 swap functions have 'to' as an argument named 'to'.
+              // Ethers v6 Result object supports looking up by name
+              // @ts-ignore
+              if (decoded.args.to) {
+                  // @ts-ignore
+                  decodedRecipient = decoded.args.to;
+              } else {
+                 // Fallback: Check standard positions (index 3 for swapTokensForETH)
+                 // This is a rough heuristic, but effective for standard Routers.
+                 if (typeof decoded.args[3] === 'string' && ethers.isAddress(decoded.args[3])) {
+                     decodedRecipient = decoded.args[3];
+                 } else if (typeof decoded.args[2] === 'string' && ethers.isAddress(decoded.args[2])) {
+                     decodedRecipient = decoded.args[2];
+                 }
+              }
+          }
+      } catch (e) { 
+          // Not a standard router router call or decode failed
+      }
+
+      await this.parseTokens(receipt, nodes, edges, provider, to, decodedRecipient);
 
       const result = {
         nodes: Array.from(nodes.values()),
@@ -120,7 +160,7 @@ export class TransactionService {
   }
 
 
-  private async parseTokens(receipt: ethers.TransactionReceipt, nodes: Map<string, any>, edges: any[], provider: ethers.JsonRpcProvider) {
+  private async parseTokens(receipt: ethers.TransactionReceipt, nodes: Map<string, any>, edges: any[], provider: ethers.JsonRpcProvider, txTo: string, decodedRecipient: string | null) {
       const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
       const depositTopic = '0xe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c240225c50273805';
       const withdrawalTopic = '0x7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65';
@@ -138,8 +178,18 @@ export class TransactionService {
 
             // Ensure the contract emitting the event is visualized as a node
             if (!nodes.has(logAddressCheck)) {
-                 const label = await this.labelingService.getLabel(logAddressCheck, provider);
-                 nodes.set(logAddressCheck, { id: logAddressCheck, label: label || 'Contract (Interactor)', type: 'contract' });
+                 let label = await this.labelingService.getLabel(logAddressCheck, provider);
+                 
+                 // Fallback: If no label, check if it's a token we just parsed
+                 if (!label) {
+                    const token = await this.fetchTokenMetadata(provider, log.address);
+                     if (token && token.symbol !== 'UNK') {
+                        label = `${token.symbol} Token`;
+                     } else {
+                        label = 'Contract (Interactor)';
+                     }
+                 }
+                 nodes.set(logAddressCheck, { id: logAddressCheck, label: label, type: 'contract' });
             }
 
             // Helper to safely extract address
@@ -170,19 +220,32 @@ export class TransactionService {
                  await this.addEdge(nodes, edges, from, toAddr, BigInt(0), { symbol: 'NFT/1155', decimals: 0 }, log.address, 'NFT Transfer', log.index, provider);
                  edgeAdded = true;
             }
-            // WETH Deposit
+            // WETH Deposit (Wrap: User -> Contract)
             else if (topic0 === depositTopic && log.topics.length === 2) {
-                const dst = extractAddress(log.topics[1]);
+                const dst = extractAddress(log.topics[1]); // receiving WETH (Wrap source)
                 const wad = BigInt(log.data);
-                await this.addEdge(nodes, edges, receipt.from, dst, wad, token, log.address, 'Wrap (Deposit)', log.index, provider);
+                // Visualize as Recipient (who wrapped) sending value to Contract
+                // In a direct wrap, receipt.from == dst. In a router swap, Router == dst.
+                await this.addEdge(nodes, edges, dst, log.address, wad, token, log.address, 'Wrap', log.index, provider);
                 edgeAdded = true;
             }
-            // WETH Withdrawal
+            // WETH Withdrawal (Unwrap: Contract -> User)
             else if (topic0 === withdrawalTopic && log.topics.length === 2) {
-                const src = extractAddress(log.topics[1]);
+                const src = extractAddress(log.topics[1]); // burning WETH
                 const wad = BigInt(log.data);
-                await this.addEdge(nodes, edges, src, log.address, wad, token, log.address, 'Unwrap (Withdrawal)', log.index, provider);
+                // Visualize as Contract returning value to User
+                await this.addEdge(nodes, edges, log.address, src, wad, token, log.address, 'Unwrap', log.index, provider);
                 edgeAdded = true;
+
+                // SPECIAL HANDLING: If this withdrawal was done by the Router (src === txTo), 
+                // and we identified a recipient in input data, then the ETH likely moves Router -> Recipient.
+                if (decodedRecipient && src.toLowerCase() === txTo.toLowerCase()) {
+                    // Start of internal ETH transfer
+                    // Create synthetic edge: Router (src) -> Recipient (decodedRecipient)
+                    // We use WETH token metadata for the value display, but label it "ETH"
+                    const ethToken = { symbol: this.getNativeSymbol('base'), decimals: 18 }; // Generic native
+                    await this.addEdge(nodes, edges, src, decodedRecipient, wad, ethToken, ethers.ZeroAddress, 'ETH Transfer', log.index + 0.1, provider);
+                }
             }
             
             // Fallback: Generic Interaction if no specific event matched

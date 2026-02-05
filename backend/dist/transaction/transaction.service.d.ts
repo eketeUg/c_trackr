@@ -4,6 +4,8 @@ export declare class TransactionService {
     private readonly logger;
     private providers;
     constructor(labelingService: LabelingService);
+    private readonly routerAbi;
+    private readonly routerInterface;
     getTransactionFlow(chain: string, hash: string): Promise<{
         nodes: any[];
         edges: any[];

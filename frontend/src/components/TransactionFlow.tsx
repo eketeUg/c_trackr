@@ -57,10 +57,10 @@ const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
 
 const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
-  dagreGraph.setGraph({ rankdir: 'LR', ranksep: 300, nodesep: 100 }); // Left to Right layout, exploded
+  dagreGraph.setGraph({ rankdir: 'LR', ranksep: 300, nodesep: 150 }); // Increased spacing for expanded nodes
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: 220, height: 80 }); // Approx node dimensions
+    dagreGraph.setNode(node.id, { width: 350, height: 150 }); // Reserve space for EXPANDED node size
   });
 
   edges.forEach((edge) => {
@@ -75,31 +75,13 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
     return {
       ...node,
       position: {
-        x: nodeWithPosition.x - 110, // Center offset
-        y: nodeWithPosition.y - 40,
+        x: nodeWithPosition.x - 175, // Center offset (half of width 350)
+        y: nodeWithPosition.y - 75,  // Center offset (half of height 150)
       },
     };
   });
 
-  // Apply staggered (zig-zag) layout if there are more than 2 nodes
-  if (nodes.length > 2) {
-    // Sort nodes by X position to apply staggering in order from left to right
-    newNodes.sort((a, b) => a.position.x - b.position.x);
-
-    newNodes = newNodes.map((node, index) => {
-      // Skip the first and last node to keep start/end points aligned (optional, but good for flow)
-      // Or just stagger everything. Let's stagger everything intermediate or everything.
-      // User asked for "branchlike or alternating". Staggering all is simplest.
-      const yOffset = index % 2 === 0 ? 75 : -75;
-      return {
-        ...node,
-        position: {
-          ...node.position,
-          y: node.position.y + yOffset,
-        },
-      };
-    });
-  }
+  // Staggering removed to rely on Dagre's natural layout for complex graphs
 
   return { nodes: newNodes, edges };
 };
@@ -130,7 +112,7 @@ export default function TransactionFlow({ data }: TransactionFlowProps) {
             target: edge.target,
             label: edge.label,
             animated: true,
-            type: ConnectionLineType.SmoothStep, // Or Bezier
+            type: ConnectionLineType.Bezier,
             style: { 
                 stroke: edge.type === 'token' ? '#3b82f6' : '#f59e0b',
                 strokeWidth: 2,

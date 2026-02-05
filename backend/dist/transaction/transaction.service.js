@@ -27,6 +27,15 @@ let TransactionService = TransactionService_1 = class TransactionService {
             arbitrum: new ethers_1.ethers.JsonRpcProvider('https://arb1.arbitrum.io/rpc'),
         };
     }
+    routerAbi = [
+        'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)',
+        'function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] path, address to, uint deadline)',
+        'function swapETHForExactTokens(uint amountOut, address[] path, address to, uint deadline)',
+        'function swapExactETHForTokens(uint amountOutMin, address[] path, address to, uint deadline)',
+        'function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] path, address to, uint deadline)',
+        'function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] path, address to, uint deadline)'
+    ];
+    routerInterface = new ethers_1.ethers.Interface(this.routerAbi);
     async getTransactionFlow(chain, hash) {
         const provider = this.providers[chain.toLowerCase()];
         if (!provider) {
@@ -55,7 +64,26 @@ let TransactionService = TransactionService_1 = class TransactionService {
                     type: 'native',
                 });
             }
-            await this.parseTokens(receipt, nodes, edges, provider);
+            let decodedRecipient = null;
+            try {
+                const decoded = this.routerInterface.parseTransaction({ data: tx.data });
+                if (decoded && decoded.args) {
+                    if (decoded.args.to) {
+                        decodedRecipient = decoded.args.to;
+                    }
+                    else {
+                        if (typeof decoded.args[3] === 'string' && ethers_1.ethers.isAddress(decoded.args[3])) {
+                            decodedRecipient = decoded.args[3];
+                        }
+                        else if (typeof decoded.args[2] === 'string' && ethers_1.ethers.isAddress(decoded.args[2])) {
+                            decodedRecipient = decoded.args[2];
+                        }
+                    }
+                }
+            }
+            catch (e) {
+            }
+            await this.parseTokens(receipt, nodes, edges, provider, to, decodedRecipient);
             const result = {
                 nodes: Array.from(nodes.values()),
                 edges,
@@ -108,7 +136,7 @@ let TransactionService = TransactionService_1 = class TransactionService {
             return { symbol: 'ERC20', decimals: 18 };
         }
     }
-    async parseTokens(receipt, nodes, edges, provider) {
+    async parseTokens(receipt, nodes, edges, provider, txTo, decodedRecipient) {
         const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
         const depositTopic = '0xe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c240225c50273805';
         const withdrawalTopic = '0x7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65';
@@ -121,8 +149,17 @@ let TransactionService = TransactionService_1 = class TransactionService {
                 const address = log.address.toLowerCase();
                 const logAddressCheck = ethers_1.ethers.getAddress(log.address);
                 if (!nodes.has(logAddressCheck)) {
-                    const label = await this.labelingService.getLabel(logAddressCheck, provider);
-                    nodes.set(logAddressCheck, { id: logAddressCheck, label: label || 'Contract (Interactor)', type: 'contract' });
+                    let label = await this.labelingService.getLabel(logAddressCheck, provider);
+                    if (!label) {
+                        const token = await this.fetchTokenMetadata(provider, log.address);
+                        if (token && token.symbol !== 'UNK') {
+                            label = `${token.symbol} Token`;
+                        }
+                        else {
+                            label = 'Contract (Interactor)';
+                        }
+                    }
+                    nodes.set(logAddressCheck, { id: logAddressCheck, label: label, type: 'contract' });
                 }
                 const extractAddress = (topic) => ethers_1.ethers.getAddress(ethers_1.ethers.dataSlice(topic, 12));
                 let token = tokenCache.get(address);
@@ -148,14 +185,18 @@ let TransactionService = TransactionService_1 = class TransactionService {
                 else if (topic0 === depositTopic && log.topics.length === 2) {
                     const dst = extractAddress(log.topics[1]);
                     const wad = BigInt(log.data);
-                    await this.addEdge(nodes, edges, receipt.from, dst, wad, token, log.address, 'Wrap (Deposit)', log.index, provider);
+                    await this.addEdge(nodes, edges, dst, log.address, wad, token, log.address, 'Wrap', log.index, provider);
                     edgeAdded = true;
                 }
                 else if (topic0 === withdrawalTopic && log.topics.length === 2) {
                     const src = extractAddress(log.topics[1]);
                     const wad = BigInt(log.data);
-                    await this.addEdge(nodes, edges, src, log.address, wad, token, log.address, 'Unwrap (Withdrawal)', log.index, provider);
+                    await this.addEdge(nodes, edges, log.address, src, wad, token, log.address, 'Unwrap', log.index, provider);
                     edgeAdded = true;
+                    if (decodedRecipient && src.toLowerCase() === txTo.toLowerCase()) {
+                        const ethToken = { symbol: this.getNativeSymbol('base'), decimals: 18 };
+                        await this.addEdge(nodes, edges, src, decodedRecipient, wad, ethToken, ethers_1.ethers.ZeroAddress, 'ETH Transfer', log.index + 0.1, provider);
+                    }
                 }
                 if (!edgeAdded) {
                 }
