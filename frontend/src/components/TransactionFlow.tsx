@@ -173,7 +173,9 @@ const getLayoutedElements = (
     if (amount && tokenSym) {
        label = `[${stepIndex}] [${ts}] ${amount} ${tokenSym}`;
     } else {
-       label = (typeof edge.label === 'string' ? edge.label : String(edge.label || '')) || edge.data?.description || `[${stepIndex}] Interaction`;
+       const existingLabel = typeof edge.label === 'string' ? edge.label : String(edge.label || '');
+       const description = edge.data?.description ? String(edge.data.description) : "";
+       label = existingLabel || description || `[${stepIndex}] Interaction`;
     }
 
     const isSwap = edge.data?.type === "swap" || edge.data?.kind === "swap";
