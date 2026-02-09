@@ -11,13 +11,14 @@ const common_1 = require("@nestjs/common");
 const transaction_service_1 = require("./transaction.service");
 const transaction_controller_1 = require("./transaction.controller");
 const labeling_module_1 = require("../labeling/labeling.module");
+const metasleuth_service_1 = require("../metasleuth/metasleuth.service");
 let TransactionModule = class TransactionModule {
 };
 exports.TransactionModule = TransactionModule;
 exports.TransactionModule = TransactionModule = __decorate([
     (0, common_1.Module)({
         imports: [labeling_module_1.LabelingModule],
-        providers: [transaction_service_1.TransactionService],
+        providers: [transaction_service_1.TransactionService, metasleuth_service_1.MetaSleuthService],
         controllers: [transaction_controller_1.TransactionController]
     })
 ], TransactionModule);

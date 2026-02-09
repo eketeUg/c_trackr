@@ -13,5 +13,14 @@ export declare class TransactionController {
             gasPrice: string;
             status: string;
         };
+    } | {
+        nodes: any[];
+        edges: any;
+        metadata: {
+            hash: string;
+            timestamp: any;
+            blockNumber: any;
+            status: string;
+        };
     }>;
 }

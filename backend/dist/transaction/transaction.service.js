@@ -14,12 +14,15 @@ exports.TransactionService = void 0;
 const common_1 = require("@nestjs/common");
 const ethers_1 = require("ethers");
 const labeling_service_1 = require("../labeling/labeling.service");
+const metasleuth_service_1 = require("../metasleuth/metasleuth.service");
 let TransactionService = TransactionService_1 = class TransactionService {
     labelingService;
+    metaSleuthService;
     logger = new common_1.Logger(TransactionService_1.name);
     providers;
-    constructor(labelingService) {
+    constructor(labelingService, metaSleuthService) {
         this.labelingService = labelingService;
+        this.metaSleuthService = metaSleuthService;
         this.providers = {
             ethereum: new ethers_1.ethers.JsonRpcProvider('https://rpc.flashbots.net'),
             bnb: new ethers_1.ethers.JsonRpcProvider('https://bsc-dataseed.binance.org'),
@@ -33,10 +36,62 @@ let TransactionService = TransactionService_1 = class TransactionService {
         'function swapETHForExactTokens(uint amountOut, address[] path, address to, uint deadline)',
         'function swapExactETHForTokens(uint amountOutMin, address[] path, address to, uint deadline)',
         'function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] path, address to, uint deadline)',
-        'function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] path, address to, uint deadline)'
+        'function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] path, address to, uint deadline)',
     ];
     routerInterface = new ethers_1.ethers.Interface(this.routerAbi);
     async getTransactionFlow(chain, hash) {
+        try {
+            const metaSleuthData = await this.metaSleuthService.fetchTransactionFlow(chain, hash);
+            if (metaSleuthData && metaSleuthData.data) {
+                this.logger.log(`Received MetaSleuth Data for ${hash}`);
+                const msNodes = metaSleuthData.data.nodes || [];
+                const msEdges = metaSleuthData.data.edges || [];
+                msEdges.sort((a, b) => (a.serial || 0) - (b.serial || 0));
+                const mappedNodes = msNodes.map((node) => ({
+                    id: node.id,
+                    label: node.label ||
+                        (node.address ? node.address.slice(0, 6) + '...' : node.id),
+                    type: node.isContract ? 'contract' : 'wallet',
+                    image: node.logo || undefined,
+                    data: {
+                        fullLabel: node.label,
+                        address: node.address,
+                        url: node.url,
+                        isContract: node.isContract,
+                    },
+                }));
+                const mappedEdges = msEdges.map((edge) => ({
+                    source: edge.from,
+                    target: edge.to,
+                    label: `${edge.amount} ${edge.tokenLabel || ''}`,
+                    type: edge.isCreate ? 'create' : 'transfer',
+                    tokenAddress: edge.token,
+                    data: {
+                        amount: edge.amount,
+                        tokenSymbol: edge.tokenLabel,
+                        tokenIcon: edge.tokenLink,
+                        timestamp: edge.ts,
+                        step: edge.serial,
+                        description: edge.description,
+                        txHash: edge.detail?.[0]?.hash,
+                    },
+                }));
+                const layoutNodes = this.computeLayout(mappedNodes, mappedEdges);
+                return {
+                    nodes: layoutNodes,
+                    edges: mappedEdges,
+                    metadata: {
+                        hash: hash,
+                        timestamp: msEdges[0]?.ts || new Date(),
+                        blockNumber: msEdges[0]?.detail?.[0]?.block || 0,
+                        status: 'Success',
+                    },
+                };
+            }
+        }
+        catch (error) {
+            this.logger.warn(`MetaSleuth integration failed locally, falling back to RPC: ${error.message}`);
+        }
         const provider = this.providers[chain.toLowerCase()];
         if (!provider) {
             throw new common_1.HttpException('Unsupported chain', common_1.HttpStatus.BAD_REQUEST);
@@ -52,10 +107,18 @@ let TransactionService = TransactionService_1 = class TransactionService {
             const nodes = new Map();
             const edges = [];
             const senderLabel = await this.labelingService.getLabel(tx.from, provider);
-            nodes.set(tx.from, { id: tx.from, label: senderLabel || 'Sender', type: 'wallet' });
+            nodes.set(tx.from, {
+                id: tx.from,
+                label: senderLabel || 'Sender',
+                type: 'wallet',
+            });
             const to = tx.to || ethers_1.ethers.ZeroAddress;
             const receiverLabel = await this.labelingService.getLabel(to, provider);
-            nodes.set(to, { id: to, label: receiverLabel || 'Receiver', type: tx.to ? 'wallet' : 'contract' });
+            nodes.set(to, {
+                id: to,
+                label: receiverLabel || 'Receiver',
+                type: tx.to ? 'wallet' : 'contract',
+            });
             if (tx.value > 0) {
                 edges.push({
                     source: tx.from,
@@ -66,16 +129,20 @@ let TransactionService = TransactionService_1 = class TransactionService {
             }
             let decodedRecipient = null;
             try {
-                const decoded = this.routerInterface.parseTransaction({ data: tx.data });
+                const decoded = this.routerInterface.parseTransaction({
+                    data: tx.data,
+                });
                 if (decoded && decoded.args) {
                     if (decoded.args.to) {
                         decodedRecipient = decoded.args.to;
                     }
                     else {
-                        if (typeof decoded.args[3] === 'string' && ethers_1.ethers.isAddress(decoded.args[3])) {
+                        if (typeof decoded.args[3] === 'string' &&
+                            ethers_1.ethers.isAddress(decoded.args[3])) {
                             decodedRecipient = decoded.args[3];
                         }
-                        else if (typeof decoded.args[2] === 'string' && ethers_1.ethers.isAddress(decoded.args[2])) {
+                        else if (typeof decoded.args[2] === 'string' &&
+                            ethers_1.ethers.isAddress(decoded.args[2])) {
                             decodedRecipient = decoded.args[2];
                         }
                     }
@@ -93,8 +160,8 @@ let TransactionService = TransactionService_1 = class TransactionService {
                     blockNumber: tx.blockNumber,
                     gasUsed: receipt.gasUsed.toString(),
                     gasPrice: tx.gasPrice ? tx.gasPrice.toString() : '0',
-                    status: receipt.status === 1 ? 'Success' : 'Failed'
-                }
+                    status: receipt.status === 1 ? 'Success' : 'Failed',
+                },
             };
             this.logger.log(`Graph Data: ${JSON.stringify(result, null, 2)}`);
             return result;
@@ -106,11 +173,79 @@ let TransactionService = TransactionService_1 = class TransactionService {
             throw new common_1.HttpException('Failed to fetch transaction', common_1.HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+    computeLayout(nodes, edges) {
+        const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+        const adjacency = new Map();
+        const inDegree = new Map();
+        nodes.forEach((n) => {
+            adjacency.set(n.id, []);
+            inDegree.set(n.id, 0);
+            n.position = { x: 0, y: 0 };
+        });
+        edges.forEach((e) => {
+            const current = adjacency.get(e.source) || [];
+            current.push(e.target);
+            adjacency.set(e.source, current);
+            inDegree.set(e.target, (inDegree.get(e.target) || 0) + 1);
+        });
+        let queue = nodes
+            .filter((n) => (inDegree.get(n.id) || 0) === 0)
+            .map((n) => n.id);
+        if (queue.length === 0 && nodes.length > 0)
+            queue.push(nodes[0].id);
+        const levels = new Map();
+        queue.forEach((id) => levels.set(id, 0));
+        let currentLevel = 0;
+        const visited = new Set(queue);
+        while (queue.length > 0) {
+            const nextQueue = [];
+            for (const nodeId of queue) {
+                const neighbors = adjacency.get(nodeId) || [];
+                for (const neighbor of neighbors) {
+                    if (!visited.has(neighbor)) {
+                        visited.add(neighbor);
+                        levels.set(neighbor, currentLevel + 1);
+                        nextQueue.push(neighbor);
+                    }
+                }
+            }
+            queue = nextQueue;
+            currentLevel++;
+        }
+        const levelGroups = new Map();
+        nodes.forEach((n) => {
+            const level = levels.get(n.id) || 0;
+            if (!levelGroups.has(level))
+                levelGroups.set(level, []);
+            levelGroups.get(level).push(n);
+        });
+        levelGroups.forEach((groupNodes, level) => {
+            groupNodes.forEach((node, index) => {
+                node.position = {
+                    x: level * 400,
+                    y: index * 150,
+                };
+            });
+        });
+        return nodes;
+    }
     knownTokens = {
-        '0x4200000000000000000000000000000000000006': { symbol: 'WETH', decimals: 18 },
-        '0x833589fCd6eDb6E08f4c7C32D4f71b54bdA02913': { symbol: 'USDC', decimals: 6 },
-        '0xdac17f958d2ee523a2206206994597c13d831ec7': { symbol: 'USDT', decimals: 6 },
-        '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': { symbol: 'USDC', decimals: 6 },
+        '0x4200000000000000000000000000000000000006': {
+            symbol: 'WETH',
+            decimals: 18,
+        },
+        '0x833589fCd6eDb6E08f4c7C32D4f71b54bdA02913': {
+            symbol: 'USDC',
+            decimals: 6,
+        },
+        '0xdac17f958d2ee523a2206206994597c13d831ec7': {
+            symbol: 'USDT',
+            decimals: 6,
+        },
+        '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': {
+            symbol: 'USDC',
+            decimals: 6,
+        },
     };
     async fetchTokenMetadata(provider, address) {
         const known = this.knownTokens[address.toLowerCase()] ||
@@ -121,14 +256,14 @@ let TransactionService = TransactionService_1 = class TransactionService {
             const abi = [
                 'function symbol() view returns (string)',
                 'function name() view returns (string)',
-                'function decimals() view returns (uint8)'
+                'function decimals() view returns (uint8)',
             ];
             const contract = new ethers_1.ethers.Contract(address, abi, provider);
             const [symbol, decimals] = await Promise.all([
                 contract.symbol().catch(async () => {
                     return await contract.name().catch(() => 'TOKEN');
                 }),
-                contract.decimals().catch(() => 18)
+                contract.decimals().catch(() => 18),
             ]);
             return { symbol, decimals: Number(decimals) };
         }
@@ -159,7 +294,11 @@ let TransactionService = TransactionService_1 = class TransactionService {
                             label = 'Contract (Interactor)';
                         }
                     }
-                    nodes.set(logAddressCheck, { id: logAddressCheck, label: label, type: 'contract' });
+                    nodes.set(logAddressCheck, {
+                        id: logAddressCheck,
+                        label: label,
+                        type: 'contract',
+                    });
                 }
                 const extractAddress = (topic) => ethers_1.ethers.getAddress(ethers_1.ethers.dataSlice(topic, 12));
                 let token = tokenCache.get(address);
@@ -194,7 +333,10 @@ let TransactionService = TransactionService_1 = class TransactionService {
                     await this.addEdge(nodes, edges, log.address, src, wad, token, log.address, 'Unwrap', log.index, provider);
                     edgeAdded = true;
                     if (decodedRecipient && src.toLowerCase() === txTo.toLowerCase()) {
-                        const ethToken = { symbol: this.getNativeSymbol('base'), decimals: 18 };
+                        const ethToken = {
+                            symbol: this.getNativeSymbol('base'),
+                            decimals: 18,
+                        };
                         await this.addEdge(nodes, edges, src, decodedRecipient, wad, ethToken, ethers_1.ethers.ZeroAddress, 'ETH Transfer', log.index + 0.1, provider);
                     }
                 }
@@ -211,18 +353,28 @@ let TransactionService = TransactionService_1 = class TransactionService {
             const cleanFrom = ethers_1.ethers.getAddress(from);
             const cleanTo = ethers_1.ethers.getAddress(to);
             if (!nodes.has(cleanFrom)) {
-                nodes.set(cleanFrom, { id: cleanFrom, label: await this.labelingService.getLabel(cleanFrom, provider) || cleanFrom.slice(0, 6) + '...', type: 'wallet' });
+                nodes.set(cleanFrom, {
+                    id: cleanFrom,
+                    label: (await this.labelingService.getLabel(cleanFrom, provider)) ||
+                        cleanFrom.slice(0, 6) + '...',
+                    type: 'wallet',
+                });
             }
             if (!nodes.has(cleanTo)) {
-                nodes.set(cleanTo, { id: cleanTo, label: await this.labelingService.getLabel(cleanTo, provider) || cleanTo.slice(0, 6) + '...', type: 'wallet' });
+                nodes.set(cleanTo, {
+                    id: cleanTo,
+                    label: (await this.labelingService.getLabel(cleanTo, provider)) ||
+                        cleanTo.slice(0, 6) + '...',
+                    type: 'wallet',
+                });
             }
-            let formattedValue = "0";
-            let displayLabel = "";
+            let formattedValue = '0';
+            let displayLabel = '';
             if (token.symbol === 'Interaction') {
-                displayLabel = "Contract Call";
+                displayLabel = 'Contract Call';
             }
             else if (token.symbol === 'NFT/1155') {
-                displayLabel = "NFT Transfer";
+                displayLabel = 'NFT Transfer';
             }
             else {
                 try {
@@ -240,7 +392,7 @@ let TransactionService = TransactionService_1 = class TransactionService {
                 label: displayLabel,
                 tokenAddress: tokenAddress,
                 type: 'token',
-                logIndex: index
+                logIndex: index,
             });
         }
         catch (e) {
@@ -249,17 +401,23 @@ let TransactionService = TransactionService_1 = class TransactionService {
     }
     getNativeSymbol(chain) {
         switch (chain.toLowerCase()) {
-            case 'ethereum': return 'ETH';
-            case 'bnb': return 'BNB';
-            case 'base': return 'ETH';
-            case 'arbitrum': return 'ETH';
-            default: return 'ETH';
+            case 'ethereum':
+                return 'ETH';
+            case 'bnb':
+                return 'BNB';
+            case 'base':
+                return 'ETH';
+            case 'arbitrum':
+                return 'ETH';
+            default:
+                return 'ETH';
         }
     }
 };
 exports.TransactionService = TransactionService;
 exports.TransactionService = TransactionService = TransactionService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [labeling_service_1.LabelingService])
+    __metadata("design:paramtypes", [labeling_service_1.LabelingService,
+        metasleuth_service_1.MetaSleuthService])
 ], TransactionService);
 //# sourceMappingURL=transaction.service.js.map

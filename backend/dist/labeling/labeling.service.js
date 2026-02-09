@@ -1,18 +1,85 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var LabelingService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LabelingService = void 0;
 const common_1 = require("@nestjs/common");
 const ethers_1 = require("ethers");
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 let LabelingService = LabelingService_1 = class LabelingService {
     logger = new common_1.Logger(LabelingService_1.name);
+    externalLabels = {};
+    async onModuleInit() {
+        this.loadExternalLabels();
+    }
+    loadExternalLabels() {
+        try {
+            const filePath = path.join(__dirname, '../../src/data/known_labels_full.json');
+            if (fs.existsSync(filePath)) {
+                const rawData = fs.readFileSync(filePath, 'utf-8');
+                const json = JSON.parse(rawData);
+                for (const [address, data] of Object.entries(json)) {
+                    if (typeof data === 'string') {
+                        this.externalLabels[address.toLowerCase()] = data;
+                    }
+                    else if (data && data.name) {
+                        this.externalLabels[address.toLowerCase()] = data.name;
+                    }
+                }
+                this.logger.log(`Loaded ${Object.keys(this.externalLabels).length} external labels.`);
+            }
+            else {
+                this.logger.warn(`Labels file not found at ${filePath}`);
+            }
+        }
+        catch (e) {
+            this.logger.error(`Failed to load external labels: ${e.message}`);
+        }
+    }
     async getLabel(address, provider) {
+        const cleanAddress = address.toLowerCase();
+        if (this.externalLabels[cleanAddress]) {
+            return this.externalLabels[cleanAddress];
+        }
         const knownLabels = {
             '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D': 'Uniswap V2 Router',
             '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD': 'Uniswap Universal Router',
@@ -45,7 +112,6 @@ let LabelingService = LabelingService_1 = class LabelingService {
             '0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549': 'Binance Hot Wallet 7',
             '0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503': 'Binance Hot Wallet 10',
         };
-        const cleanAddress = address.toLowerCase();
         for (const [key, label] of Object.entries(knownLabels)) {
             if (key.toLowerCase() === cleanAddress)
                 return label;

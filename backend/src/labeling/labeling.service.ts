@@ -1,12 +1,50 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ethers } from 'ethers';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
-export class LabelingService {
+export class LabelingService implements OnModuleInit {
     private readonly logger = new Logger(LabelingService.name);
+    private externalLabels: Record<string, string> = {};
 
-    async getLabel(address: string, provider?: ethers.Provider | ethers.JsonRpcProvider): Promise<string | null> {
-        // known addresses
+    async onModuleInit() {
+        this.loadExternalLabels();
+    }
+
+    private loadExternalLabels() {
+        try {
+            const filePath = path.join(__dirname, '../../src/data/known_labels_full.json');
+            if (fs.existsSync(filePath)) {
+                const rawData = fs.readFileSync(filePath, 'utf-8');
+                const json = JSON.parse(rawData);
+                // Convert { "0x..": { "name": "Binance" } } OR { "0x..": "Binance" } to proper map
+                // Keys in JSON are likely lowercase checksummed, but we'll normalize to lowercase for lookup
+                for (const [address, data] of Object.entries(json)) {
+                    if (typeof data === 'string') {
+                         this.externalLabels[address.toLowerCase()] = data;
+                    } else if (data && (data as any).name) {
+                        this.externalLabels[address.toLowerCase()] = (data as any).name;
+                    }
+                }
+                this.logger.log(`Loaded ${Object.keys(this.externalLabels).length} external labels.`);
+            } else {
+                this.logger.warn(`Labels file not found at ${filePath}`);
+            }
+        } catch (e) {
+            this.logger.error(`Failed to load external labels: ${e.message}`);
+        }
+    }
+
+    async getLabel(address: string, provider?: ethers.JsonRpcProvider): Promise<string | null> {
+        const cleanAddress = address.toLowerCase();
+
+        // 1. Check External JSON Labels (High priority)
+        if (this.externalLabels[cleanAddress]) {
+            return this.externalLabels[cleanAddress];
+        }
+
+        // 2. Check Static Known Labels
         const knownLabels: Record<string, string> = {
             // Ethereum
             '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D': 'Uniswap V2 Router',
@@ -51,7 +89,6 @@ export class LabelingService {
             '0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503': 'Binance Hot Wallet 10',
         };
 
-        const cleanAddress = address.toLowerCase();
         // Check static list (case-insensitive check)
         for (const [key, label] of Object.entries(knownLabels)) {
             if (key.toLowerCase() === cleanAddress) return label;

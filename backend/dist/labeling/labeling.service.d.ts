@@ -1,5 +1,9 @@
+import { OnModuleInit } from '@nestjs/common';
 import { ethers } from 'ethers';
-export declare class LabelingService {
+export declare class LabelingService implements OnModuleInit {
     private readonly logger;
-    getLabel(address: string, provider?: ethers.Provider | ethers.JsonRpcProvider): Promise<string | null>;
+    private externalLabels;
+    onModuleInit(): Promise<void>;
+    private loadExternalLabels;
+    getLabel(address: string, provider?: ethers.JsonRpcProvider): Promise<string | null>;
 }
