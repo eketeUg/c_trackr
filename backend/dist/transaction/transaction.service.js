@@ -21,7 +21,7 @@ let TransactionService = TransactionService_1 = class TransactionService {
     constructor(labelingService) {
         this.labelingService = labelingService;
         this.providers = {
-            ethereum: new ethers_1.ethers.JsonRpcProvider('https://cloudflare-eth.com'),
+            ethereum: new ethers_1.ethers.JsonRpcProvider('https://rpc.flashbots.net'),
             bnb: new ethers_1.ethers.JsonRpcProvider('https://bsc-dataseed.binance.org'),
             base: new ethers_1.ethers.JsonRpcProvider('https://mainnet.base.org'),
             arbitrum: new ethers_1.ethers.JsonRpcProvider('https://arb1.arbitrum.io/rpc'),

@@ -9,7 +9,7 @@ export class TransactionService {
 
   constructor(private readonly labelingService: LabelingService) {
     this.providers = {
-      ethereum: new ethers.JsonRpcProvider('https://cloudflare-eth.com'),
+      ethereum: new ethers.JsonRpcProvider('https://rpc.flashbots.net'),
       bnb: new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org'),
       base: new ethers.JsonRpcProvider('https://mainnet.base.org'),
       arbitrum: new ethers.JsonRpcProvider('https://arb1.arbitrum.io/rpc'),
