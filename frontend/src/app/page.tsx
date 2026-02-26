@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import SearchForm from '@/components/SearchForm';
 import TransactionFlow from '@/components/TransactionFlow';
+import LandingPage from '@/components/LandingPage';
 import { getTransactionFlow } from '@/lib/api';
 
 import GalaxyBackground from '@/components/GalaxyBackground';
@@ -31,36 +32,18 @@ export default function Home() {
     <main className={`min-h-screen text-white font-sans relative flex flex-col items-center ${!data ? 'justify-center' : 'justify-start pt-24'}`}>
       <GalaxyBackground />
       
-      {/* Fixed Top-Left Logo */}
-      <div className="fixed top-6 left-8 z-50 text-2xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)] cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.location.reload()}>
-        C-Trackr
-      </div>
-
-      <div className={`flex flex-col items-center gap-10 p-8 relative z-10 w-full transition-all duration-500 ${data ? 'pt-0' : ''}`}>
-        
-        {/* Header */}
+      <div className={`flex flex-col items-center relative z-10 w-full transition-all duration-500 ${data ? 'pt-0 w-full' : 'p-0'}`}>
+        {/* Landing Page rendering when no data is present */}
         {!data && (
-            <div className="text-center space-y-4 pt-4 animate-in fade-in zoom-in duration-500">
-            <h1 className="text-6xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]">
-                C-Trackr
-            </h1>
-            <p className="text-blue-200/70 text-xl max-w-2xl mx-auto drop-shadow-md">
-                Visualize crypto transaction flows across multiple chains.
-            </p>
-            </div>
+           <LandingPage onSearch={handleSearch} isLoading={loading} error={error} />
         )}
 
-        {/* Search Section - Transitions to top when data exists */}
-        <div className={`w-full flex justify-center transition-all duration-700 ${data ? 'fixed top-4 left-0 right-0 z-40 px-4' : ''}`}>
-           <div className={`w-full transition-all duration-700 ${data ? 'max-w-4xl scale-90' : 'max-w-5xl'}`}>
-              <SearchForm onSearch={handleSearch} isLoading={loading} />
-           </div>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-            <div className="w-full max-w-2xl bg-red-900/30 border border-red-500 text-red-200 px-4 py-3 rounded-md mt-20">
-                {error}
+        {/* Search Section transitions to top only when data exists */}
+        {data && (
+           <div className="w-full flex justify-center transition-all duration-700 fixed top-4 left-0 right-0 z-40 px-4">
+               <div className="w-full max-w-4xl scale-90 transition-all duration-700">
+                  <SearchForm onSearch={handleSearch} isLoading={loading} />
+               </div>
             </div>
         )}
       </div>

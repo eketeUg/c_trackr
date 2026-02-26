@@ -16,9 +16,11 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
+import CustomEdge from "./CustomEdge";
 import CustomNode from "./CustomNode";
 
 const nodeTypes = { custom: CustomNode };
+const edgeTypes = { custom: CustomEdge };
 
 interface TransactionNode {
   id: string;
@@ -51,10 +53,7 @@ interface TransactionFlowProps {
   } | null;
 }
 
-const getLayoutedElements = (
-  nodes: Node[],
-  edges: Edge[],
-) => {
+const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   // Always instantiate a new graph to prevent state issues
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -62,29 +61,59 @@ const getLayoutedElements = (
   // Configured to minimize crossings and maximize clarity
   dagreGraph.setGraph({
     rankdir: "LR",
-    ranker: "network-simplex", 
-    acyclicer: "greedy", 
-    nodesep: 100, // Balanced vertical spacing
-    ranksep: 400, // Increased Horizontal spacing for Labels
+    ranker: "network-simplex",
+    acyclicer: "greedy",
+    nodesep: 20, // Tighter vertical spacing for pill nodes
+    ranksep: 100, // Reduced Horizontal spacing for compactness like Metasleuth
     marginx: 50,
     marginy: 50,
   });
 
-  // Identify the Start Node (Source of the first edge)
+  // 1. Identify Start Node
   const startNodeId = edges.length > 0 ? edges[0].source : null;
 
+  // 2. Assign Ranks based on "First Appearance" in Step Order
+  const nodeRanks = new Map<string, number>();
+  const visited = new Set<string>();
+
+  // Sort edges strictly by step to simulate time flow
+  const timeSortedEdges = [...edges].sort((a, b) => {
+    const aSerial = Number(a.data?.step ?? a.data?.serial ?? 0);
+    const bSerial = Number(b.data?.step ?? b.data?.serial ?? 0);
+    return aSerial - bSerial;
+  });
+
+  if (startNodeId) {
+    nodeRanks.set(startNodeId, 0);
+    visited.add(startNodeId);
+  }
+
+  // Assign ranks: Child Rank = Parent Rank + 1 (if not visited)
+  timeSortedEdges.forEach((edge) => {
+    const sourceRank = nodeRanks.get(edge.source) ?? 0;
+
+    if (!visited.has(edge.target)) {
+      nodeRanks.set(edge.target, sourceRank + 1);
+      visited.add(edge.target);
+    }
+  });
+
+  // 3. Configure Dagre Graph
   nodes.forEach((node) =>
-    dagreGraph.setNode(node.id, { width: 350, height: 150 }),
+    dagreGraph.setNode(node.id, { width: 220, height: 60 }),
   );
 
   edges.forEach((edge) => {
-    // Force the Start Node to be on the Left (Rank 0) by treating incoming edges as outgoing
-    // If an edge targets the Start Node, reverse it for layout calculation so Start Node is "upstream"
-    if (startNodeId && edge.target === startNodeId) {
-      dagreGraph.setEdge(String(edge.target), String(edge.source));
-    } else {
-      dagreGraph.setEdge(String(edge.source), String(edge.target));
-    }
+    const sourceRank = nodeRanks.get(edge.source) ?? 0;
+    const targetRank = nodeRanks.get(edge.target) ?? 0;
+    const isForward = sourceRank < targetRank;
+
+    // Enforce high weight for Forward Flow (Time)
+    // Low weight for Back/Cross Flow
+    dagreGraph.setEdge(String(edge.source), String(edge.target), {
+      weight: isForward ? 100 : 1,
+      minlen: isForward ? targetRank - sourceRank : 1,
+    });
   });
 
   dagre.layout(dagreGraph);
@@ -92,14 +121,14 @@ const getLayoutedElements = (
   const nodePositions: { [key: string]: { x: number; y: number } } = {};
   const layoutedNodes = nodes.map((node) => {
     const n = dagreGraph.node(node.id);
-    const pos = { x: n.x - 175, y: n.y - 75 };
+    const pos = { x: n.x - 110, y: n.y - 30 }; // Center anchor based on new width/height
     nodePositions[node.id] = pos;
     return { ...node, position: pos };
   });
 
   // Track port usage to distribute connections
   const portUsage = new Map<string, { leftIn: number; rightOut: number }>();
-  
+
   const getUsage = (id: string) => {
     if (!portUsage.has(id)) portUsage.set(id, { leftIn: 0, rightOut: 0 });
     return portUsage.get(id)!;
@@ -128,7 +157,7 @@ const getLayoutedElements = (
 
     if (isForward) {
       // 1. FORWARD FLOW (Right -> Left)
-      
+
       // Source (Right Side - Outgoing)
       if (sourceUsage.rightOut === 0) {
         sourceHandle = "source-right-a";
@@ -138,7 +167,7 @@ const getLayoutedElements = (
         sourceUsage.rightOut++;
       } else {
         sourceHandle = "source-right-c";
-        sourceUsage.rightOut++; 
+        sourceUsage.rightOut++;
       }
 
       // Target (Left Side - Incoming)
@@ -155,29 +184,12 @@ const getLayoutedElements = (
     } else {
       // 2. BACKWARD FLOW (Left -> Right)
       // "from it left to thier right"
-      
+
       sourceHandle = "source-left"; // Source Leaves from LEFT
       targetHandle = "target-right"; // Target Receives at RIGHT
     }
 
-    const edgeColor = isForward ? "#4f46e5" : "#ef4444";
-    const amount = edge.data?.amount ?? edge.data?.value ?? "";
-    const tokenSym = edge.data?.tokenSymbol ?? edge.data?.token ?? "";
-    const ts = edge.data?.timestamp
-      ? String(edge.data.timestamp).replace("T", " ")
-      : edge.data?.time || "";
-    
-    const stepIndex = edge.data?.step ?? edge.data?.serial ?? idx + 1;
-
-    let label = "";
-    if (amount && tokenSym) {
-       label = `[${stepIndex}] [${ts}] ${amount} ${tokenSym}`;
-    } else {
-       const existingLabel = typeof edge.label === 'string' ? edge.label : String(edge.label || '');
-       const description = edge.data?.description ? String(edge.data.description) : "";
-       label = existingLabel || description || `[${stepIndex}] Interaction`;
-    }
-
+    const edgeColor = "#60a5fa"; // Always Blue-400 for uniform look
     const isSwap = edge.data?.type === "swap" || edge.data?.kind === "swap";
 
     return {
@@ -185,22 +197,17 @@ const getLayoutedElements = (
       sourceHandle,
       targetHandle,
       // Reverting to Consistent Bezier Layout (User preference for clarity)
-      type: ConnectionLineType.Bezier,
+      type: "custom", // Use CustomEdge
       animated: true,
       style: {
-        stroke: edgeColor, 
-        strokeWidth: 2,
-        strokeDasharray: isSwap ? "6 4" : undefined,
+        stroke: edgeColor,
+        strokeWidth: 1.5, // Slightly thinner
+        strokeDasharray: undefined, // Solid lines for everything like Metasleuth
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: edgeColor,
       },
-      label: label,
-      labelStyle: { fill: "#eee", fontWeight: 500, fontSize: 11, fontFamily: "monospace" },
-      labelBgStyle: { fill: "#111", fillOpacity: 0.8, rx: 4, ry: 4 },
-      labelBgPadding: [8, 4] as [number, number],
-      labelBgBorderRadius: 4,
       zIndex: isForward ? 1 : 10,
     };
   });
@@ -224,24 +231,28 @@ export default function TransactionFlow({ data }: TransactionFlowProps) {
       id: node.id.toLowerCase(),
       type: "custom",
       position: { x: 0, y: 0 },
-      data: { ...node.data, id: node.id.toLowerCase(), label: node.label, type: node.type },
+      data: {
+        ...node.data,
+        id: node.id.toLowerCase(),
+        label: node.label,
+        type: node.type,
+      },
     }));
 
     const rawEdges: Edge[] = data.edges.map((edge, idx) => ({
       id: `e-${idx}`,
       source: String(edge.source).toLowerCase(),
       target: String(edge.target).toLowerCase(),
-      type: ConnectionLineType.SmoothStep, // ALWAYS SmoothStep for Schematic/Circuit look
       data: edge.data,
     }));
 
     // Sort edges by step/serial
     const sortedEdges: Edge[] = rawEdges.slice().sort((a, b) => {
       const aSerial = Number(
-        a.data?.serial ?? a.data?.order ?? parseInt(a.id.split("-")[1]) + 1,
+        a.data?.step ?? a.data?.serial ?? parseInt(a.id.split("-")[1]) + 1,
       );
       const bSerial = Number(
-        b.data?.serial ?? b.data?.order ?? parseInt(b.id.split("-")[1]) + 1,
+        b.data?.step ?? b.data?.serial ?? parseInt(b.id.split("-")[1]) + 1,
       );
       return aSerial - bSerial;
     });
@@ -269,15 +280,25 @@ export default function TransactionFlow({ data }: TransactionFlowProps) {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         minZoom={0.1}
         nodesDraggable={true}
       >
-        <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
+        <svg
+          style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0 }}
+        >
           <defs>
-            <linearGradient id="edge-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient
+              id="edge-gradient"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="0%"
+            >
               <stop offset="0%" stopColor="#ef4444" /> {/* Red for Outgoing */}
-              <stop offset="100%" stopColor="#22c55e" /> {/* Green for Incoming */}
+              <stop offset="100%" stopColor="#22c55e" />{" "}
+              {/* Green for Incoming */}
             </linearGradient>
           </defs>
         </svg>

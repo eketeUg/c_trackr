@@ -83,7 +83,8 @@ export class TransactionService {
             timestamp: edge.ts,
             step: edge.serial,
             description: edge.description,
-            txHash: edge.detail?.[0]?.hash, // Link to sub-transaction if needed
+            txHash: edge.detail?.[0]?.hash || hash, // Link to sub-transaction if needed, fallback to main hash
+            value: edge.value, // Keep raw value if needed
           },
         }));
 

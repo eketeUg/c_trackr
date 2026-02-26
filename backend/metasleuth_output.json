@@ -1,0 +1,741 @@
+[dotenv@17.2.4] injecting env (3) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.2.4] injecting env (0) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+Testing MetaSleuth for 0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e on base...
+https://metasleuth.io/api/v1/fund-flow-expand
+base
+0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e
+[32m[Nest] 91624  - [39m02/17/2026, 10:35:11 AM [32m    LOG[39m [38;5;3m[MetaSleuthService] [39m[32mFetching MetaSleuth flow for 0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e on base[39m
+{
+  code: 10000,
+  data: {
+    nodes: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    edges: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ]
+  }
+}
+Result: {
+  "code": 10000,
+  "data": {
+    "nodes": [
+      {
+        "id": "base-0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "chain": "base",
+        "address": "0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "url": "https://basescan.org/address/0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "label": "ZoraV4CoinHook",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": true,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": null,
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0xa249f3ea662a4471b270639cf80aa76218d93be0",
+        "chain": "base",
+        "address": "0xa249f3ea662a4471b270639cf80aa76218d93be0",
+        "url": "https://basescan.org/address/0xa249f3ea662a4471b270639cf80aa76218d93be0",
+        "label": "",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": false,
+        "isPruned": false,
+        "risk": -1,
+        "riskLabels": null,
+        "riskType": 0,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0x7bf90111ad7c22bec9e9dff8a01a44713cc1b1b6",
+        "chain": "base",
+        "address": "0x7bf90111ad7c22bec9e9dff8a01a44713cc1b1b6",
+        "url": "https://basescan.org/address/0x7bf90111ad7c22bec9e9dff8a01a44713cc1b1b6",
+        "label": "GnosisSafeProxy",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": true,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": null,
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+        "chain": "base",
+        "address": "0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+        "url": "https://basescan.org/address/0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+        "label": "UniswapV3Pool",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": false,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": null,
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0x4200000000000000000000000000000000000006",
+        "chain": "base",
+        "address": "0x4200000000000000000000000000000000000006",
+        "url": "https://basescan.org/address/0x4200000000000000000000000000000000000006",
+        "label": "Wrapped Ether",
+        "logo": "https://assets.coingecko.com/coins/images/39810/thumb/weth.png?1724139790",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": true,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": [
+          "BRIDGE"
+        ],
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "chain": "base",
+        "address": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "url": "https://basescan.org/address/0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "label": "RelayRouterV3",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": true,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": null,
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0xaf94cf32622e8034025df701ce2f3a7535e8eeed",
+        "chain": "base",
+        "address": "0xaf94cf32622e8034025df701ce2f3a7535e8eeed",
+        "url": "https://basescan.org/address/0xaf94cf32622e8034025df701ce2f3a7535e8eeed",
+        "label": "",
+        "logo": "",
+        "isContract": false,
+        "bookColor": "",
+        "isOpenSource": false,
+        "isPruned": false,
+        "risk": -1,
+        "riskLabels": null,
+        "riskType": 0,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "chain": "base",
+        "address": "0xea758cac6115309b325c582fd0782d79e3502177",
+        "url": "https://basescan.org/address/0xea758cac6115309b325c582fd0782d79e3502177",
+        "label": "BaseSettler",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": true,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": null,
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0x498581ff718922c3f8e6a244956af099b2652b2b",
+        "chain": "base",
+        "address": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+        "url": "https://basescan.org/address/0x498581ff718922c3f8e6a244956af099b2652b2b",
+        "label": "PoolManager",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": true,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": null,
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0x55c88bb05602da94fce8feadc1cbebf5b72c2453",
+        "chain": "base",
+        "address": "0x55c88bb05602da94fce8feadc1cbebf5b72c2453",
+        "url": "https://basescan.org/address/0x55c88bb05602da94fce8feadc1cbebf5b72c2453",
+        "label": "",
+        "logo": "",
+        "isContract": false,
+        "bookColor": "",
+        "isOpenSource": false,
+        "isPruned": false,
+        "risk": -1,
+        "riskLabels": null,
+        "riskType": 0,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      },
+      {
+        "id": "base-0x21e2ce70511e4fe542a97708e89520471daa7a66",
+        "chain": "base",
+        "address": "0x21e2ce70511e4fe542a97708e89520471daa7a66",
+        "url": "https://basescan.org/address/0x21e2ce70511e4fe542a97708e89520471daa7a66",
+        "label": "SafeProxy",
+        "logo": "",
+        "isContract": true,
+        "bookColor": "",
+        "isOpenSource": true,
+        "isPruned": false,
+        "risk": 2,
+        "riskLabels": null,
+        "riskType": 1,
+        "type": 1,
+        "priority": 0,
+        "nodeExtraInfo": {
+          "solanaAccountInfo": null
+        }
+      }
+    ],
+    "edges": [
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 1,
+        "from": "base-0xaf94cf32622e8034025df701ce2f3a7535e8eeed",
+        "to": "base-0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "token": "0xb010ced1020de442156e556118843fef46a2f41e",
+        "suspiciousFake": false,
+        "tokenLink": "",
+        "tokenLabel": "Hannah Montana",
+        "amount": "22,939.58730139",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 22,939.58730139 Hannah Montana",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xaf94cf32622e8034025df701ce2f3a7535e8eeed",
+            "to": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "22,939.58730139",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "22939587301392470601395"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 2,
+        "from": "base-0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "to": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "token": "0xb010ced1020de442156e556118843fef46a2f41e",
+        "suspiciousFake": false,
+        "tokenLink": "",
+        "tokenLabel": "Hannah Montana",
+        "amount": "22,939.58730139",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 22,939.58730139 Hannah Montana",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+            "to": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "22,939.58730139",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "22939587301392470601395"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 3,
+        "from": "base-0x498581ff718922c3f8e6a244956af099b2652b2b",
+        "to": "base-0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/e4135b15-9276-4a89-80e0-223e13dbeaaa.png",
+        "tokenLabel": "USDC",
+        "amount": "0.001933",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.001933 USDC",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+            "to": "0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.001933",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "1933"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 4,
+        "from": "base-0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "to": "base-0x55c88bb05602da94fce8feadc1cbebf5b72c2453",
+        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/e4135b15-9276-4a89-80e0-223e13dbeaaa.png",
+        "tokenLabel": "USDC",
+        "amount": "0.000579",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.000579 USDC",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+            "to": "0x55c88bb05602da94fce8feadc1cbebf5b72c2453",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.000579",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "579"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 5,
+        "from": "base-0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "to": "base-0xa249f3ea662a4471b270639cf80aa76218d93be0",
+        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/e4135b15-9276-4a89-80e0-223e13dbeaaa.png",
+        "tokenLabel": "USDC",
+        "amount": "0.001208",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.001208 USDC",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+            "to": "0xa249f3ea662a4471b270639cf80aa76218d93be0",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.001208",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "1208"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 6,
+        "from": "base-0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "to": "base-0x21e2ce70511e4fe542a97708e89520471daa7a66",
+        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/e4135b15-9276-4a89-80e0-223e13dbeaaa.png",
+        "tokenLabel": "USDC",
+        "amount": "0.000024",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.000024 USDC",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+            "to": "0x21e2ce70511e4fe542a97708e89520471daa7a66",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.000024",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "24"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 7,
+        "from": "base-0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+        "to": "base-0x7bf90111ad7c22bec9e9dff8a01a44713cc1b1b6",
+        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/e4135b15-9276-4a89-80e0-223e13dbeaaa.png",
+        "tokenLabel": "USDC",
+        "amount": "0.000122",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.000122 USDC",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xc8d077444625eb300a427a6dfb2b1dbf9b159040",
+            "to": "0x7bf90111ad7c22bec9e9dff8a01a44713cc1b1b6",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.000122",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "122"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 8,
+        "from": "base-0x498581ff718922c3f8e6a244956af099b2652b2b",
+        "to": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/e4135b15-9276-4a89-80e0-223e13dbeaaa.png",
+        "tokenLabel": "USDC",
+        "amount": "0.248853",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.248853 USDC",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+            "to": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.248853",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "248853"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 9,
+        "from": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "to": "base-0x498581ff718922c3f8e6a244956af099b2652b2b",
+        "token": "0xb010ced1020de442156e556118843fef46a2f41e",
+        "suspiciousFake": false,
+        "tokenLink": "",
+        "tokenLabel": "Hannah Montana",
+        "amount": "22,939.58730139",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 22,939.58730139 Hannah Montana",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "to": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "22,939.58730139",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "22939587301392470601395"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 10,
+        "from": "base-0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+        "to": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "token": "0x4200000000000000000000000000000000000006",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.coingecko.com/coins/images/39810/thumb/weth.png?1724139790",
+        "tokenLabel": "WETH",
+        "amount": "0.00007871",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.00007871 WETH",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+            "to": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.00007871",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "78710323401512"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 11,
+        "from": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "to": "base-0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/e4135b15-9276-4a89-80e0-223e13dbeaaa.png",
+        "tokenLabel": "USDC",
+        "amount": "0.248853",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.248853 USDC",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "to": "0xb4cb800910b228ed3d0834cf79d697127bbb00e5",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.248853",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "248853"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 12,
+        "from": "base-0x4200000000000000000000000000000000000006",
+        "to": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "token": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/8e21a293-fd50-4b1d-b827-e75daebcf254.svg",
+        "tokenLabel": "Ether",
+        "amount": "0.00007871",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.00007871 Ether",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0x4200000000000000000000000000000000000006",
+            "to": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.00007871",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "78710323401512"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 13,
+        "from": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "to": "base-0x4200000000000000000000000000000000000006",
+        "token": "0x4200000000000000000000000000000000000006",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.coingecko.com/coins/images/39810/thumb/weth.png?1724139790",
+        "tokenLabel": "WETH",
+        "amount": "0.00007871",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.00007871 WETH",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "to": "0x4200000000000000000000000000000000000006",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.00007871",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "78710323401512"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 14,
+        "from": "base-0xea758cac6115309b325c582fd0782d79e3502177",
+        "to": "base-0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "token": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/8e21a293-fd50-4b1d-b827-e75daebcf254.svg",
+        "tokenLabel": "Ether",
+        "amount": "0.00007871",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.00007871 Ether",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xea758cac6115309b325c582fd0782d79e3502177",
+            "to": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.00007871",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "78710323401512"
+          }
+        ]
+      },
+      {
+        "selected": true,
+        "chain": "base",
+        "ts": "2025-11-14 21:24:37",
+        "index": 161,
+        "serial": 15,
+        "from": "base-0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+        "to": "base-0xaf94cf32622e8034025df701ce2f3a7535e8eeed",
+        "token": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "suspiciousFake": false,
+        "tokenLink": "https://assets.blocksec.com/icon/8e21a293-fd50-4b1d-b827-e75daebcf254.svg",
+        "tokenLabel": "Ether",
+        "amount": "0.00007871",
+        "value": "",
+        "isCreate": false,
+        "description": "[2025-11-14 21:24:37] 0.00007871 Ether",
+        "detail": [
+          {
+            "date": "2025-11-14 21:24:37",
+            "block": 38183065,
+            "from": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+            "to": "0xaf94cf32622e8034025df701ce2f3a7535e8eeed",
+            "hash": "0x0821ae0fc3a7764e9052e77454afb1a98725c2c5846b5672f76f6f8a6880ff5e",
+            "amount": "0.00007871",
+            "value": "",
+            "note": "",
+            "noteId": 0,
+            "crossId": "",
+            "realAmount": "78710323401512"
+          }
+        ]
+      }
+    ]
+  }
+}

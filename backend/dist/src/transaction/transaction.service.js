@@ -73,7 +73,8 @@ let TransactionService = TransactionService_1 = class TransactionService {
                         timestamp: edge.ts,
                         step: edge.serial,
                         description: edge.description,
-                        txHash: edge.detail?.[0]?.hash,
+                        txHash: edge.detail?.[0]?.hash || hash,
+                        value: edge.value,
                     },
                 }));
                 const layoutNodes = this.computeLayout(mappedNodes, mappedEdges);
