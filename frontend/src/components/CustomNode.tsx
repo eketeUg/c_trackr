@@ -37,8 +37,8 @@ export default memo(({ data }: { data: NodeData }) => {
   return (
     <div
       onClick={() => setIsExpanded(!isExpanded)}
-      className={`relative group transition-all duration-300 ${
-        isExpanded ? "z-50" : "z-10"
+      className={`relative group transition-all duration-300 flex items-center bg-[#181922] border border-[#2a2c3a] rounded-[24px] pr-4 pl-1 py-1 min-w-[140px] w-max max-w-none shadow-sm cursor-pointer ${
+        isExpanded ? "z-50 ring-1 ring-blue-500/50" : "z-10 hover:border-gray-500"
       }`}
     >
       {/* --- MULTI-PORT LEFT/RIGHT HANDLES --- */}
@@ -103,46 +103,34 @@ export default memo(({ data }: { data: NodeData }) => {
         className="!w-2 !h-2 !border-none"
       />
 
-      {/* Main Node Visual - PILL SHAPE */}
+      {/* Main Node Visual - ICON + TEXT INSIDE PILL */}
       <div
-        className={`
-        flex items-center gap-2 px-3 py-1.5 min-w-[140px] max-w-[200px]
-        rounded-xl shadow-md border transition-all cursor-pointer
-        bg-[#111420]
-        ${isExpanded ? "border-blue-500 ring-1 ring-blue-500/50" : "border-gray-700 hover:border-gray-500"}
-      `}
+        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm
+         ${data.image ? "bg-gray-800" : isContract ? "bg-[#1f2937] text-purple-400" : "bg-[#18345e] text-blue-400"}
+       `}
       >
-        {/* Icon Container */}
-        <div
-          className={`
-           w-6 h-6 rounded-full flex items-center justify-center shrink-0
-           ${data.image ? "" : isContract ? "bg-purple-900/50 text-purple-400" : "bg-blue-900/50 text-blue-400"}
-         `}
-        >
-          {data.image ? (
-            <img
-              src={data.image}
-              alt={data.label}
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : isContract ? (
-            <FileCode size={14} />
-          ) : (
-            <Wallet size={14} />
-          )}
-        </div>
+        {data.image ? (
+          <img
+            src={data.image}
+            alt={data.label}
+            className="w-full h-full rounded-full object-cover"
+          />
+        ) : isContract ? (
+          <FileCode size={14} />
+        ) : (
+          <Wallet size={14} />
+        )}
+      </div>
 
-        {/* Label Container */}
-        <div className="flex flex-col overflow-hidden">
-          <div
-            className="text-gray-200 text-xs font-semibold truncate leading-tight"
-            title={data.label}
-          >
-            {data.label}
-          </div>
-          <div className="text-[9px] text-gray-500 font-mono truncate leading-tight">
-            {data.id.slice(0, 4)}...{data.id.slice(-4)}
-          </div>
+      <div className="flex flex-col ml-2 overflow-hidden pointer-events-none">
+        <div
+          className="text-[#e2e8f0] text-xs font-semibold truncate tracking-wide"
+          title={data.label}
+        >
+          {data.label}
+        </div>
+        <div className="text-[9px] text-[#64748b] font-mono whitespace-nowrap">
+          {data.id}
         </div>
       </div>
 

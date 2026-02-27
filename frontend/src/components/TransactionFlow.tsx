@@ -63,65 +63,121 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
     rankdir: "LR",
     ranker: "network-simplex",
     acyclicer: "greedy",
-    nodesep: 20, // Tighter vertical spacing for pill nodes
-    ranksep: 100, // Reduced Horizontal spacing for compactness like Metasleuth
+    nodesep: 40, // Vertical spacing
+    ranksep: 260, // Horizontal spacing for labels
     marginx: 50,
     marginy: 50,
   });
 
-  // 1. Identify Start Node
-  const startNodeId = edges.length > 0 ? edges[0].source : null;
+  // 1. Find Root Node (assume the first source node in edges that is never a target, or just the very first source)
+  const targets = new Set(edges.map((e) => String(e.target)));
+  let rootId =
+    edges.length > 0
+      ? edges.find((e) => !targets.has(String(e.source)))?.source ||
+        edges[0].source
+      : null;
 
-  // 2. Assign Ranks based on "First Appearance" in Step Order
-  const nodeRanks = new Map<string, number>();
-  const visited = new Set<string>();
+  // Fallback if edges array is empty or root logic fails
+  if (!rootId && nodes.length > 0) rootId = nodes[0].id;
 
-  // Sort edges strictly by step to simulate time flow
-  const timeSortedEdges = [...edges].sort((a, b) => {
-    const aSerial = Number(a.data?.step ?? a.data?.serial ?? 0);
-    const bSerial = Number(b.data?.step ?? b.data?.serial ?? 0);
-    return aSerial - bSerial;
+  // 2. Perform Breadth-First Search to calculate Node Depth from Root
+  const nodeDepth = new Map<string, number>();
+  const adjacencyList = new Map<string, string[]>();
+
+  // Build Adjacency List for BFS
+  edges.forEach((edge) => {
+    const src = String(edge.source);
+    const tgt = String(edge.target);
+    if (!adjacencyList.has(src)) adjacencyList.set(src, []);
+    adjacencyList.get(src)!.push(tgt);
   });
 
-  if (startNodeId) {
-    nodeRanks.set(startNodeId, 0);
-    visited.add(startNodeId);
+  if (rootId) {
+    const queue = [{ id: String(rootId), depth: 0 }];
+    nodeDepth.set(String(rootId), 0);
+
+    while (queue.length > 0) {
+      const { id, depth } = queue.shift()!;
+      const neighbors = adjacencyList.get(id) || [];
+
+      for (const neighbor of neighbors) {
+        if (!nodeDepth.has(neighbor)) {
+          nodeDepth.set(neighbor, depth + 1);
+          queue.push({ id: neighbor, depth: depth + 1 });
+        }
+      }
+    }
   }
 
-  // Assign ranks: Child Rank = Parent Rank + 1 (if not visited)
-  timeSortedEdges.forEach((edge) => {
-    const sourceRank = nodeRanks.get(edge.source) ?? 0;
+  // Assign isolated nodes to depth 0
+  nodes.forEach((n) => {
+    if (!nodeDepth.has(n.id)) nodeDepth.set(n.id, 0);
+  });
 
-    if (!visited.has(edge.target)) {
-      nodeRanks.set(edge.target, sourceRank + 1);
-      visited.add(edge.target);
+  // Track Multi-Edges (Duplicates between same src and tgt)
+  const duplicateCounts = new Map<string, number>();
+  
+  // Track Divergent-Edges (Same source, different targets in the same layout pass)
+  // This helps us fan out edges (like BaseSettler -> 5 different pools) so they don't perfectly overlap
+  const divergentCounts = new Map<string, number>();
+
+  // 3. Configure Dagre Nodes
+  nodes.forEach((node) =>
+    dagreGraph.setNode(node.id, { width: 200, height: 40 }),
+  );
+
+  // 4. Configure Dagre Edges (Only feed FORWARD chronological edges into Dagre)
+  edges.forEach((edge) => {
+    const src = String(edge.source);
+    const tgt = String(edge.target);
+
+    // Update Duplicate Tracking for this directional pair (Undirected matching)
+    const pairKey = [src, tgt].sort().join('-');
+    const count = (duplicateCounts.get(pairKey) || 0) + 1;
+    duplicateCounts.set(pairKey, count);
+    
+    // Update Divergent Tracking for this source node
+    const srcCount = (divergentCounts.get(src) || 0) + 1;
+    divergentCounts.set(src, srcCount);
+
+    // Set edge data duplicate/divergent index for later rendering offsets
+    if (edge.data) {
+      edge.data.duplicateIndex = count - 1; 
+      edge.data.totalDuplicates = 1; // Will be updated in a second pass
+      
+      edge.data.divergentIndex = srcCount - 1;
+      edge.data.totalDivergent = 1; // Will be updated in a second pass
+    }
+
+    const srcDepth = nodeDepth.get(src)!;
+    const tgtDepth = nodeDepth.get(tgt)!;
+
+    // To prevent Dagre from scrambling ranks due to cycles, we strictly only feed it edges that flow Forward or Parallel, but NEVER Backwards. 
+    // Back-edges (Target depth is lower than Source depth) are ignored by Dagre, forcing it to keep chronological layout.
+    if (tgtDepth >= srcDepth) {
+      dagreGraph.setEdge(src, tgt, { weight: 1 });
     }
   });
 
-  // 3. Configure Dagre Graph
-  nodes.forEach((node) =>
-    dagreGraph.setNode(node.id, { width: 220, height: 60 }),
-  );
-
+  // Second pass: Update total duplicates and divergent counts on each edge
   edges.forEach((edge) => {
-    const sourceRank = nodeRanks.get(edge.source) ?? 0;
-    const targetRank = nodeRanks.get(edge.target) ?? 0;
-    const isForward = sourceRank < targetRank;
-
-    // Enforce high weight for Forward Flow (Time)
-    // Low weight for Back/Cross Flow
-    dagreGraph.setEdge(String(edge.source), String(edge.target), {
-      weight: isForward ? 100 : 1,
-      minlen: isForward ? targetRank - sourceRank : 1,
-    });
+    const src = String(edge.source);
+    const tgt = String(edge.target);
+    const pairKey = [src, tgt].sort().join('-');
+    
+    if (edge.data) {
+      edge.data.totalDuplicates = duplicateCounts.get(pairKey) || 1;
+      edge.data.totalDivergent = divergentCounts.get(src) || 1;
+    }
   });
 
+  // 5. Execute Dagre layout
   dagre.layout(dagreGraph);
 
   const nodePositions: { [key: string]: { x: number; y: number } } = {};
   const layoutedNodes = nodes.map((node) => {
     const n = dagreGraph.node(node.id);
-    const pos = { x: n.x - 110, y: n.y - 30 }; // Center anchor based on new width/height
+    const pos = { x: n.x - 100, y: n.y - 20 }; // Exact center for 200x40 pill
     nodePositions[node.id] = pos;
     return { ...node, position: pos };
   });
@@ -189,16 +245,15 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
       targetHandle = "target-right"; // Target Receives at RIGHT
     }
 
-    const edgeColor = "#60a5fa"; // Always Blue-400 for uniform look
+    const edgeColor = "#4b597c"; // Precise light steel blue/grey from MetaSleuth
     const isSwap = edge.data?.type === "swap" || edge.data?.kind === "swap";
 
     return {
       ...edge,
       sourceHandle,
       targetHandle,
-      // Reverting to Consistent Bezier Layout (User preference for clarity)
       type: "custom", // Use CustomEdge
-      animated: true,
+      animated: false, // Turn off animation to match MetaSleuth
       style: {
         stroke: edgeColor,
         strokeWidth: 1.5, // Slightly thinner
@@ -304,7 +359,7 @@ export default function TransactionFlow({ data }: TransactionFlowProps) {
         </svg>
         <Controls />
         <MiniMap style={{ background: "#111" }} nodeColor={() => "#333"} />
-        <Background gap={20} size={1} color="#222" />
+        <Background gap={24} size={1} color="#1f2233" />
       </ReactFlow>
     </div>
   );
