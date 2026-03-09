@@ -66,6 +66,7 @@ let TransactionService = TransactionService_1 = class TransactionService {
                     label: `${edge.amount} ${edge.tokenLabel || ''}`,
                     type: edge.isCreate ? 'create' : 'transfer',
                     tokenAddress: edge.token,
+                    selected: edge.selected,
                     data: {
                         amount: edge.amount,
                         tokenSymbol: edge.tokenLabel,
@@ -75,6 +76,8 @@ let TransactionService = TransactionService_1 = class TransactionService {
                         description: edge.description,
                         txHash: edge.detail?.[0]?.hash || hash,
                         value: edge.value,
+                        selected: edge.selected,
+                        suspiciousFake: edge.suspiciousFake,
                     },
                 }));
                 const layoutNodes = this.computeLayout(mappedNodes, mappedEdges);

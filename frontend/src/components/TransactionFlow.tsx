@@ -81,39 +81,6 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   if (!rootId && nodes.length > 0) rootId = nodes[0].id;
 
   // 2. Perform Breadth-First Search to calculate Node Depth from Root
-  const nodeDepth = new Map<string, number>();
-  const adjacencyList = new Map<string, string[]>();
-
-  // Build Adjacency List for BFS
-  edges.forEach((edge) => {
-    const src = String(edge.source);
-    const tgt = String(edge.target);
-    if (!adjacencyList.has(src)) adjacencyList.set(src, []);
-    adjacencyList.get(src)!.push(tgt);
-  });
-
-  if (rootId) {
-    const queue = [{ id: String(rootId), depth: 0 }];
-    nodeDepth.set(String(rootId), 0);
-
-    while (queue.length > 0) {
-      const { id, depth } = queue.shift()!;
-      const neighbors = adjacencyList.get(id) || [];
-
-      for (const neighbor of neighbors) {
-        if (!nodeDepth.has(neighbor)) {
-          nodeDepth.set(neighbor, depth + 1);
-          queue.push({ id: neighbor, depth: depth + 1 });
-        }
-      }
-    }
-  }
-
-  // Assign isolated nodes to depth 0
-  nodes.forEach((n) => {
-    if (!nodeDepth.has(n.id)) nodeDepth.set(n.id, 0);
-  });
-
   // Track Multi-Edges (Duplicates between same src and tgt)
   const duplicateCounts = new Map<string, number>();
   
@@ -126,7 +93,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
     dagreGraph.setNode(node.id, { width: 200, height: 40 }),
   );
 
-  // 4. Configure Dagre Edges (Only feed FORWARD chronological edges into Dagre)
+  // 4. Configure Dagre Edges
   edges.forEach((edge) => {
     const src = String(edge.source);
     const tgt = String(edge.target);
@@ -149,14 +116,8 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
       edge.data.totalDivergent = 1; // Will be updated in a second pass
     }
 
-    const srcDepth = nodeDepth.get(src)!;
-    const tgtDepth = nodeDepth.get(tgt)!;
-
-    // To prevent Dagre from scrambling ranks due to cycles, we strictly only feed it edges that flow Forward or Parallel, but NEVER Backwards. 
-    // Back-edges (Target depth is lower than Source depth) are ignored by Dagre, forcing it to keep chronological layout.
-    if (tgtDepth >= srcDepth) {
-      dagreGraph.setEdge(src, tgt, { weight: 1 });
-    }
+    // Set all valid edges in Dagre, letting it resolve cycles using its acyclicer config
+    dagreGraph.setEdge(src, tgt, { weight: 1 });
   });
 
   // Second pass: Update total duplicates and divergent counts on each edge
@@ -175,9 +136,13 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   dagre.layout(dagreGraph);
 
   const nodePositions: { [key: string]: { x: number; y: number } } = {};
-  const layoutedNodes = nodes.map((node) => {
+  const layoutedNodes = nodes.map((node, i) => {
     const n = dagreGraph.node(node.id);
-    const pos = { x: n.x - 100, y: n.y - 20 }; // Exact center for 200x40 pill
+    // If dagre didn't place it (e.g. isolated node), give it a fallback position 
+    const pos = n 
+      ? { x: n.x - 100, y: n.y - 20 } // Exact center for 200x40 pill
+      : { x: 0, y: i * 80 }; 
+
     nodePositions[node.id] = pos;
     return { ...node, position: pos };
   });
@@ -282,7 +247,28 @@ export default function TransactionFlow({ data }: TransactionFlowProps) {
     // 2. Edges represent flow between them
     // 3. Loops are allowed but styled as "Backward" schematic lines
 
-    const rawNodes: Node[] = data.nodes.map((node) => ({
+    const rawEdges: Edge[] = data.edges
+      .filter((edge: any) => edge.selected === true || edge.data?.selected === true)
+      .map((edge: any, idx) => ({
+      id: `e-${idx}`,
+      source: String(edge.source).toLowerCase(),
+      target: String(edge.target).toLowerCase(),
+      data: edge.data || edge,
+    }));
+
+    // Find all active nodes by checking sources and targets of filtered edges
+    const activeNodeIds = new Set<string>();
+    rawEdges.forEach(edge => {
+      activeNodeIds.add(edge.source);
+      activeNodeIds.add(edge.target);
+    });
+
+    // Make sure the main searched address is always included even if it has no clean edges!
+    const targetAddress = data.metadata.hash?.toLowerCase(); // the search input is passed as hash originally
+
+    const rawNodes: Node[] = data.nodes
+      .filter(node => activeNodeIds.has(node.id.toLowerCase()) || (targetAddress && node.id.toLowerCase().includes(targetAddress)))
+      .map((node) => ({
       id: node.id.toLowerCase(),
       type: "custom",
       position: { x: 0, y: 0 },
@@ -292,13 +278,6 @@ export default function TransactionFlow({ data }: TransactionFlowProps) {
         label: node.label,
         type: node.type,
       },
-    }));
-
-    const rawEdges: Edge[] = data.edges.map((edge, idx) => ({
-      id: `e-${idx}`,
-      source: String(edge.source).toLowerCase(),
-      target: String(edge.target).toLowerCase(),
-      data: edge.data,
     }));
 
     // Sort edges by step/serial

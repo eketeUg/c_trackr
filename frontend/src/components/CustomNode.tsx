@@ -37,8 +37,8 @@ export default memo(({ data }: { data: NodeData }) => {
   return (
     <div
       onClick={() => setIsExpanded(!isExpanded)}
-      className={`relative group transition-all duration-300 flex items-center bg-[#181922] border border-[#2a2c3a] rounded-[24px] pr-4 pl-1 py-1 min-w-[140px] w-max max-w-none shadow-sm cursor-pointer ${
-        isExpanded ? "z-50 ring-1 ring-blue-500/50" : "z-10 hover:border-gray-500"
+      className={`relative group transition-all duration-300 flex items-center bg-[#151722] border rounded-[20px] pr-4 pl-1 py-1 min-w-[140px] max-w-[220px] shadow-lg cursor-pointer ${
+        isExpanded ? "z-50 border-[#4b597c] ring-1 ring-[#4b597c]/50" : "z-10 border-[#2a2c3a] hover:border-[#3a3c4a]"
       }`}
     >
       {/* --- MULTI-PORT LEFT/RIGHT HANDLES --- */}
@@ -105,33 +105,41 @@ export default memo(({ data }: { data: NodeData }) => {
 
       {/* Main Node Visual - ICON + TEXT INSIDE PILL */}
       <div
-        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm
-         ${data.image ? "bg-gray-800" : isContract ? "bg-[#1f2937] text-purple-400" : "bg-[#18345e] text-blue-400"}
+        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-inner overflow-hidden
+         ${data.image ? "bg-[#1f2233]" : isContract ? "bg-[#25283d] text-blue-400" : "bg-[#1e293b] text-blue-300"}
        `}
       >
         {data.image ? (
           <img
             src={data.image}
             alt={data.label}
-            className="w-full h-full rounded-full object-cover"
+            className="w-full h-full object-cover"
           />
         ) : isContract ? (
-          <FileCode size={14} />
+          <FileCode size={14} className="opacity-80" />
         ) : (
-          <Wallet size={14} />
+          <Wallet size={14} className="opacity-80" />
         )}
       </div>
 
-      <div className="flex flex-col ml-2 overflow-hidden pointer-events-none">
-        <div
-          className="text-[#e2e8f0] text-xs font-semibold truncate tracking-wide"
-          title={data.label}
-        >
-          {data.label}
-        </div>
-        <div className="text-[9px] text-[#64748b] font-mono whitespace-nowrap">
-          {data.id}
-        </div>
+      <div className="flex flex-col ml-2.5 overflow-hidden pointer-events-none w-full">
+        {data.label && data.label.trim() !== "" ? (
+          <>
+            <div
+              className="text-[#e2e8f0] text-[11px] font-medium truncate tracking-wide"
+              title={data.label}
+            >
+              {data.label}
+            </div>
+            <div className="text-[9px] text-[#64748b] font-mono truncate opacity-80" title={data.id}>
+               {data.id.substring(0, 8)}...{data.id.substring(data.id.length - 6)}
+            </div>
+          </>
+        ) : (
+          <div className="text-[#e2e8f0] text-[11px] font-mono truncate tracking-wide" title={data.id}>
+             {data.id.substring(0, 6)}...{data.id.substring(data.id.length - 4)}
+          </div>
+        )}
       </div>
 
       {/* Expanded Context Menu */}

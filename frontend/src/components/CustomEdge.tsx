@@ -3,7 +3,6 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   EdgeProps,
-  getBezierPath,
 } from "@xyflow/react";
 
 interface EdgeData extends Record<string, unknown> {
@@ -34,60 +33,73 @@ const CustomEdge: FC<EdgeProps> = ({
   const tokenSymbol = edgeData.tokenSymbol;
   const description = edgeData.description;
   const tokenIcon = edgeData.tokenIcon;
+  
   // Parse duplicate and divergent info passed from Dagre mapping
   const duplicateIndex = Number(edgeData.duplicateIndex) || 0;
   const totalDuplicates = Number(edgeData.totalDuplicates) || 1;
   const divergentIndex = Number(edgeData.divergentIndex) || 0;
   const totalDivergent = Number(edgeData.totalDivergent) || 1;
 
-  // Calculate curve offsets for multi-edges 
-  let curveOffset = 0;
+  // Determine Edge Direction based on coordinates (Left-to-Right = Forward)
+  const isForward = sourceX <= targetX;
+
+  // Calculate curve offsets for multi-edges (fanning them out)
+  let spreadIndex = 0;
+  let totalSpread = 1;
+  const verticalSeparation = 40; 
+  const horizontalStagger = 15; // Shift tight corners inward so they nest
   
   if (totalDuplicates > 1) {
-    // 1. Identical A->B and B->A pairs (Strong Offset: 90px loops)
-    const centerIndex = (totalDuplicates - 1) / 2;
-    const distanceToCenter = duplicateIndex - centerIndex;
-    curveOffset = distanceToCenter * 90; 
+    spreadIndex = duplicateIndex;
+    totalSpread = totalDuplicates;
   } else if (totalDivergent > 1) {
-    // 2. Fanning edges from single source to different targets (Mild Offset: 90px sweeps)
-    // Dagre naturally curves these, but if they go to targets in the exact same rank they will physically overlap.
-    const centerIndex = (totalDivergent - 1) / 2;
-    const distanceToCenter = divergentIndex - centerIndex;
-    curveOffset = distanceToCenter * 90;
+    spreadIndex = divergentIndex;
+    totalSpread = totalDivergent;
   }
 
-  // To cleanly bow bezier curves, we adjust the vertical control points.
-  // Because nodes are quite far apart horizontally (ranksep=260), we push the control points further inward 
-  // (0.25 and 0.75 instead of 0.5) to create distinct looping bell-curves instead of flat arches.
-  // When applying divergent curve offsets, we apply it strongly to the Source control point (c1Y) where they originate.
-  const c1X = sourceX + (targetX - sourceX) * 0.25;
-  const c1Y = sourceY + curveOffset;
-  const c2X = targetX - (targetX - sourceX) * 0.25;
-  const c2Y = targetY + (totalDuplicates > 1 ? curveOffset : 0); // Only apply offset to Target control point if it's a true duplicate loop
+  const centerIndex = (totalSpread - 1) / 2;
+  const offsetMultiplier = spreadIndex - centerIndex;
+
+  // Push lines up/down from the direct center path
+  const controlYOffset = offsetMultiplier * verticalSeparation;
+  
+  // Stagger the horizontal curve point so inner tracks turn earlier and outer tracks turn later, preventing crossover collision
+  // Take absolute because both the top and bottom outer-tracks need to turn wider than the center track
+  const nestOffset = Math.abs(offsetMultiplier) * horizontalStagger;  
+
+  // Calculate smooth Bezier Curve with Control Points pushed out horizontally to flatten the middle
+  const distX = Math.abs(targetX - sourceX);
+  const dirX = isForward ? 1 : -1;
+
+  // The base curve goes out about 50% of the way before turning
+  const baseCurveX = Math.max(distX * 0.45, 60);
+
+  // Apply nesting stagger to X control points, and separation to Y control points
+  const c1X = sourceX + ((baseCurveX - nestOffset) * dirX);
+  const c1Y = sourceY + controlYOffset; 
+  
+  const c2X = targetX - ((baseCurveX - nestOffset) * dirX);
+  const c2Y = targetY + controlYOffset;
 
   const edgePath = `M ${sourceX},${sourceY} C ${c1X},${c1Y} ${c2X},${c2Y} ${targetX},${targetY}`;
 
-  // Calculate label position exactly at the midpoint of the curve
-  // B(t) = (1-t)^3 * P0 + 3(1-t)^2 * t * P1 + 3(1-t) * t^2 * P2 + t^3 * P3 where t=0.5
+  // Calculate Exact Midpoint of the Bezier Curve for the Label Placement (t=0.5)
   const t = 0.5;
-
+  const mt = 1 - t;
   const labelX = 
-    Math.pow(1-t, 3) * sourceX + 
-    3 * Math.pow(1-t, 2) * t * c1X + 
-    3 * (1-t) * Math.pow(t, 2) * c2X + 
-    Math.pow(t, 3) * targetX;
+    (mt * mt * mt * sourceX) + 
+    (3 * mt * mt * t * c1X) + 
+    (3 * mt * t * t * c2X) + 
+    (t * t * t * targetX);
     
   const labelY = 
-    Math.pow(1-t, 3) * sourceY + 
-    3 * Math.pow(1-t, 2) * t * c1Y + 
-    3 * (1-t) * Math.pow(t, 2) * c2Y + 
-    Math.pow(t, 3) * targetY;
+    (mt * mt * mt * sourceY) + 
+    (3 * mt * mt * t * c1Y) + 
+    (3 * mt * t * t * c2Y) + 
+    (t * t * t * targetY);
 
   // Format timestamp (e.g. "2025-11-14 21:24:37" -> "21:24:37")
   const timeStr = timestamp ? String(timestamp).split(" ")[1] : "";
-
-  // Determine Edge Direction based on coordinates (Left-to-Right = Forward)
-  const isForward = sourceX <= targetX;
   
   // Apply Red for Forward edges, Green for Backward edges
   const edgeColor = isForward ? "#ef4444" : "#22c55e"; // tailwind text-red-500 and text-green-500
@@ -105,7 +117,7 @@ const CustomEdge: FC<EdgeProps> = ({
         <div
           style={{
             position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px) translate(0, -10px)`, // Slight offset up
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`, // centered exactly on the line
             fontSize: 10,
             pointerEvents: "auto", // Allow hovering if needed
           }}

@@ -76,6 +76,7 @@ export class TransactionService {
           label: `${edge.amount} ${edge.tokenLabel || ''}`,
           type: edge.isCreate ? 'create' : 'transfer',
           tokenAddress: edge.token,
+          selected: edge.selected,
           data: {
             amount: edge.amount,
             tokenSymbol: edge.tokenLabel,
@@ -85,6 +86,8 @@ export class TransactionService {
             description: edge.description,
             txHash: edge.detail?.[0]?.hash || hash, // Link to sub-transaction if needed, fallback to main hash
             value: edge.value, // Keep raw value if needed
+            selected: edge.selected,
+            suspiciousFake: edge.suspiciousFake,
           },
         }));
 
