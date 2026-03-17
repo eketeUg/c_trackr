@@ -1,32 +1,16 @@
 "use client";
 
-import React, { useCallback, useEffect } from "react";
-import {
-  ReactFlow,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  MiniMap,
-  Controls,
-  Background,
-  Node,
-  Edge,
-  MarkerType,
-  ConnectionLineType,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import dagre from "dagre";
-import CustomEdge from "./CustomEdge";
-import CustomNode from "./CustomNode";
-
-const nodeTypes = { custom: CustomNode };
-const edgeTypes = { custom: CustomEdge };
+import React, { useEffect, useRef } from "react";
+import { graphviz } from "d3-graphviz";
+import genDotStr, { FundFlowNode, FundFlowEdge, FundFlowRes } from "./MetaSleuthGraph/dot";
+import { initNodes } from "./MetaSleuthGraph/graph";
+import { NodeType } from "./MetaSleuthGraph/enum";
 
 interface TransactionNode {
   id: string;
   label: string;
   type: "wallet" | "contract";
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 interface TransactionEdge {
@@ -35,7 +19,22 @@ interface TransactionEdge {
   label: string;
   type: "transfer" | "swap";
   tokenAddress?: string;
-  data?: any;
+  selected?: boolean;
+  from?: string;
+  to?: string;
+  data?: Record<string, unknown> & {
+    selected?: boolean;
+    tokenLabel?: string;
+    tokenSymbol?: string;
+    detail?: Array<{ date?: string }>;
+    ts?: string;
+    amount?: string | number;
+    step?: number;
+    serial?: number;
+    type?: string;
+    kind?: string;
+    suspiciousFake?: boolean;
+  };
 }
 
 interface MetaData {
@@ -43,6 +42,8 @@ interface MetaData {
   timestamp: string;
   blockNumber: number;
   status: string;
+  focusAddress?: string;
+  focusNodeId?: string;
 }
 
 interface TransactionFlowProps {
@@ -53,293 +54,105 @@ interface TransactionFlowProps {
   } | null;
 }
 
-const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
-  // Always instantiate a new graph to prevent state issues
-  const dagreGraph = new dagre.graphlib.Graph();
-  dagreGraph.setDefaultEdgeLabel(() => ({}));
+const getPrimaryEndpoint = (edge: TransactionEdge, key: "source" | "target") => {
+  if (edge?.[key]) return String(edge[key]).toLowerCase();
+  if (key === "source" && edge?.from) return String(edge.from).toLowerCase();
+  if (key === "target" && edge?.to) return String(edge.to).toLowerCase();
+  return "";
+};
 
-  // Configured to minimize crossings and maximize clarity
-  dagreGraph.setGraph({
-    rankdir: "LR",
-    ranker: "network-simplex",
-    acyclicer: "greedy",
-    nodesep: 40, // Vertical spacing
-    ranksep: 260, // Horizontal spacing for labels
-    marginx: 50,
-    marginy: 50,
-  });
+const deriveFocusNodeId = (nodes: TransactionNode[], edges: TransactionEdge[], metadata?: MetaData) => {
+  const fromMetadata =
+    metadata?.focusAddress ??
+    metadata?.focusNodeId ??
+    (metadata?.hash?.startsWith("0x") && metadata.hash.length > 40 ? metadata.hash : "");
+  if (fromMetadata) {
+    const exact = nodes.find((node) => node.id.toLowerCase() === fromMetadata.toLowerCase());
+    if (exact) return exact.id.toLowerCase();
+  }
 
-  // 1. Find Root Node (assume the first source node in edges that is never a target, or just the very first source)
-  const targets = new Set(edges.map((e) => String(e.target)));
-  let rootId =
-    edges.length > 0
-      ? edges.find((e) => !targets.has(String(e.source)))?.source ||
-        edges[0].source
-      : null;
-
-  // Fallback if edges array is empty or root logic fails
-  if (!rootId && nodes.length > 0) rootId = nodes[0].id;
-
-  // 2. Perform Breadth-First Search to calculate Node Depth from Root
-  // Track Multi-Edges (Duplicates between same src and tgt)
-  const duplicateCounts = new Map<string, number>();
-  
-  // Track Divergent-Edges (Same source, different targets in the same layout pass)
-  // This helps us fan out edges (like BaseSettler -> 5 different pools) so they don't perfectly overlap
-  const divergentCounts = new Map<string, number>();
-
-  // 3. Configure Dagre Nodes
-  nodes.forEach((node) =>
-    dagreGraph.setNode(node.id, { width: 200, height: 40 }),
-  );
-
-  // 4. Configure Dagre Edges
+  const degree = new Map<string, number>();
   edges.forEach((edge) => {
-    const src = String(edge.source);
-    const tgt = String(edge.target);
-
-    // Update Duplicate Tracking for this directional pair (Undirected matching)
-    const pairKey = [src, tgt].sort().join('-');
-    const count = (duplicateCounts.get(pairKey) || 0) + 1;
-    duplicateCounts.set(pairKey, count);
-    
-    // Update Divergent Tracking for this source node
-    const srcCount = (divergentCounts.get(src) || 0) + 1;
-    divergentCounts.set(src, srcCount);
-
-    // Set edge data duplicate/divergent index for later rendering offsets
-    if (edge.data) {
-      edge.data.duplicateIndex = count - 1; 
-      edge.data.totalDuplicates = 1; // Will be updated in a second pass
-      
-      edge.data.divergentIndex = srcCount - 1;
-      edge.data.totalDivergent = 1; // Will be updated in a second pass
-    }
-
-    // Set all valid edges in Dagre, letting it resolve cycles using its acyclicer config
-    dagreGraph.setEdge(src, tgt, { weight: 1 });
+    const src = getPrimaryEndpoint(edge, "source");
+    const tgt = getPrimaryEndpoint(edge, "target");
+    degree.set(src, (degree.get(src) || 0) + 1);
+    degree.set(tgt, (degree.get(tgt) || 0) + 1);
   });
-
-  // Second pass: Update total duplicates and divergent counts on each edge
-  edges.forEach((edge) => {
-    const src = String(edge.source);
-    const tgt = String(edge.target);
-    const pairKey = [src, tgt].sort().join('-');
-    
-    if (edge.data) {
-      edge.data.totalDuplicates = duplicateCounts.get(pairKey) || 1;
-      edge.data.totalDivergent = divergentCounts.get(src) || 1;
+  let best = "";
+  let bestDegree = -1;
+  degree.forEach((score, nodeId) => {
+    if (score > bestDegree) {
+      best = nodeId;
+      bestDegree = score;
     }
   });
-
-  // 5. Execute Dagre layout
-  dagre.layout(dagreGraph);
-
-  const nodePositions: { [key: string]: { x: number; y: number } } = {};
-  const layoutedNodes = nodes.map((node, i) => {
-    const n = dagreGraph.node(node.id);
-    // If dagre didn't place it (e.g. isolated node), give it a fallback position 
-    const pos = n 
-      ? { x: n.x - 100, y: n.y - 20 } // Exact center for 200x40 pill
-      : { x: 0, y: i * 80 }; 
-
-    nodePositions[node.id] = pos;
-    return { ...node, position: pos };
-  });
-
-  // Track port usage to distribute connections
-  const portUsage = new Map<string, { leftIn: number; rightOut: number }>();
-
-  const getUsage = (id: string) => {
-    if (!portUsage.has(id)) portUsage.set(id, { leftIn: 0, rightOut: 0 });
-    return portUsage.get(id)!;
-  };
-
-  // Update edges with Multi-Port Vertical Routing
-  const layoutedEdges = edges.map((edge, idx) => {
-    // Determine flow direction
-    const sourcePos = nodePositions[edge.source] || { x: 0 };
-    const targetPos = nodePositions[edge.target] || { x: 0 };
-    const isForward = targetPos.x >= sourcePos.x;
-
-    const sourceUsage = getUsage(edge.source);
-    const targetUsage = getUsage(edge.target);
-
-    let sourceHandle = "";
-    let targetHandle = "";
-
-    // PRIORITY RULES:
-    // Forward (A->B): Use A-Right (A/B/C) -> B-Left (A/B/C)
-    // Backward (B->A): Use B-Left (Return) -> A-Right (Return)
-
-    // STRICT FACE LOGIC:
-    // Forward (A -> B): Source Right -> Target Left
-    // Backward (B -> A/C -> B): Source Left -> Target Right
-
-    if (isForward) {
-      // 1. FORWARD FLOW (Right -> Left)
-
-      // Source (Right Side - Outgoing)
-      if (sourceUsage.rightOut === 0) {
-        sourceHandle = "source-right-a";
-        sourceUsage.rightOut++;
-      } else if (sourceUsage.rightOut === 1) {
-        sourceHandle = "source-right-b";
-        sourceUsage.rightOut++;
-      } else {
-        sourceHandle = "source-right-c";
-        sourceUsage.rightOut++;
-      }
-
-      // Target (Left Side - Incoming)
-      if (targetUsage.leftIn === 0) {
-        targetHandle = "target-left-a";
-        targetUsage.leftIn++;
-      } else if (targetUsage.leftIn === 1) {
-        targetHandle = "target-left-b";
-        targetUsage.leftIn++;
-      } else {
-        targetHandle = "target-left-c";
-        targetUsage.leftIn++;
-      }
-    } else {
-      // 2. BACKWARD FLOW (Left -> Right)
-      // "from it left to thier right"
-
-      sourceHandle = "source-left"; // Source Leaves from LEFT
-      targetHandle = "target-right"; // Target Receives at RIGHT
-    }
-
-    const edgeColor = "#4b597c"; // Precise light steel blue/grey from MetaSleuth
-    const isSwap = edge.data?.type === "swap" || edge.data?.kind === "swap";
-
-    return {
-      ...edge,
-      sourceHandle,
-      targetHandle,
-      type: "custom", // Use CustomEdge
-      animated: false, // Turn off animation to match MetaSleuth
-      style: {
-        stroke: edgeColor,
-        strokeWidth: 1.5, // Slightly thinner
-        strokeDasharray: undefined, // Solid lines for everything like Metasleuth
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: edgeColor,
-      },
-      zIndex: isForward ? 1 : 10,
-    };
-  });
-
-  return { nodes: layoutedNodes, edges: layoutedEdges };
+  return best;
 };
 
 export default function TransactionFlow({ data }: TransactionFlowProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!data) return;
 
-    // --- SINGLE ENTITY MODEL (Schematic Flow) ---
-    // 1. One Node per Address
-    // 2. Edges represent flow between them
-    // 3. Loops are allowed but styled as "Backward" schematic lines
-
-    const rawEdges: Edge[] = data.edges
-      .filter((edge: any) => edge.selected === true || edge.data?.selected === true)
-      .map((edge: any, idx) => ({
-      id: `e-${idx}`,
-      source: String(edge.source).toLowerCase(),
-      target: String(edge.target).toLowerCase(),
-      data: edge.data || edge,
-    }));
-
-    // Find all active nodes by checking sources and targets of filtered edges
-    const activeNodeIds = new Set<string>();
-    rawEdges.forEach(edge => {
-      activeNodeIds.add(edge.source);
-      activeNodeIds.add(edge.target);
-    });
-
-    // Make sure the main searched address is always included even if it has no clean edges!
-    const targetAddress = data.metadata.hash?.toLowerCase(); // the search input is passed as hash originally
-
-    const rawNodes: Node[] = data.nodes
-      .filter(node => activeNodeIds.has(node.id.toLowerCase()) || (targetAddress && node.id.toLowerCase().includes(targetAddress)))
-      .map((node) => ({
-      id: node.id.toLowerCase(),
-      type: "custom",
-      position: { x: 0, y: 0 },
-      data: {
-        ...node.data,
-        id: node.id.toLowerCase(),
-        label: node.label,
-        type: node.type,
-      },
-    }));
-
-    // Sort edges by step/serial
-    const sortedEdges: Edge[] = rawEdges.slice().sort((a, b) => {
-      const aSerial = Number(
-        a.data?.step ?? a.data?.serial ?? parseInt(a.id.split("-")[1]) + 1,
-      );
-      const bSerial = Number(
-        b.data?.step ?? b.data?.serial ?? parseInt(b.id.split("-")[1]) + 1,
-      );
-      return aSerial - bSerial;
-    });
-
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-      rawNodes,
-      sortedEdges,
+    const rawEdges: TransactionEdge[] = data.edges.filter(
+      (edge) => edge.selected === true || edge.data?.selected === true
     );
+    const edgesToUse = rawEdges.length > 0 ? rawEdges : data.edges;
 
-    setNodes(layoutedNodes);
-    setEdges(layoutedEdges);
-  }, [data, setNodes, setEdges]);
+    const focusNodeId = deriveFocusNodeId(data.nodes, edgesToUse, data.metadata);
 
-  const onConnect = useCallback(
-    (params: any) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
-  );
+    const activeNodeIds = new Set<string>();
+    edgesToUse.forEach(edge => {
+      activeNodeIds.add(getPrimaryEndpoint(edge, "source"));
+      activeNodeIds.add(getPrimaryEndpoint(edge, "target"));
+    });
+
+    const fundFlowNodes: FundFlowNode[] = data.nodes
+      .filter((node) => activeNodeIds.has(node.id.toLowerCase()) || node.id.toLowerCase() === focusNodeId)
+      .map((n) => ({
+        id: n.id.toLowerCase(),
+        address: n.id,
+        label: n.label,
+        type: NodeType.NORMAL,
+        selected: true,
+        chain: 'ethereum',
+        color: n.id.toLowerCase() === focusNodeId ? '#b89a4f' : '#41454f',
+      }));
+
+    const fundFlowEdges: FundFlowEdge[] = edgesToUse
+      .filter(e => getPrimaryEndpoint(e, "source") && getPrimaryEndpoint(e, "target"))
+      .map(e => ({
+        from: getPrimaryEndpoint(e, "source"),
+        to: getPrimaryEndpoint(e, "target"),
+        serial: Number(e.data?.step || e.data?.serial || 0),
+        description: e.data?.amount ? String(e.data.amount) + (e.data.tokenSymbol ? ` ${e.data.tokenSymbol}` : '') : '',
+        selected: true,
+      }));
+
+    const fundFlow: FundFlowRes = { nodes: fundFlowNodes, edges: fundFlowEdges };
+
+    if (graphContainerRef.current) {
+      try {
+        graphviz(graphContainerRef.current)
+          .options({
+            zoom: true,
+            fit: true,
+            useWorker: false,
+          })
+          .on("end", () => {
+            initNodes(fundFlow);
+          })
+          .renderDot(genDotStr(focusNodeId || "", fundFlow));
+      } catch (e) {
+        console.error("D3-Graphviz Error:", e);
+      }
+    }
+  }, [data]);
 
   return (
-    <div style={{ width: "100%", height: "100%", background: "transparent" }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        minZoom={0.1}
-        nodesDraggable={true}
-      >
-        <svg
-          style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0 }}
-        >
-          <defs>
-            <linearGradient
-              id="edge-gradient"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="0%"
-            >
-              <stop offset="0%" stopColor="#ef4444" /> {/* Red for Outgoing */}
-              <stop offset="100%" stopColor="#22c55e" />{" "}
-              {/* Green for Incoming */}
-            </linearGradient>
-          </defs>
-        </svg>
-        <Controls />
-        <MiniMap style={{ background: "#111" }} nodeColor={() => "#333"} />
-        <Background gap={24} size={1} color="#1f2233" />
-      </ReactFlow>
+    <div style={{ width: "100%", height: "100%", background: "#1c1f26", overflow: "hidden" }}>
+      <div id="graph0" ref={graphContainerRef} style={{ width: "100%", height: "100%" }} />
     </div>
   );
 }

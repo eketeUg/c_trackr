@@ -8,8 +8,19 @@ import { getTransactionFlow } from '@/lib/api';
 
 import GalaxyBackground from '@/components/GalaxyBackground';
 
+interface TransactionResponse {
+  nodes: unknown[];
+  edges: unknown[];
+  metadata: {
+    status: string;
+    blockNumber: number;
+    gasUsed?: string;
+    timestamp: string;
+  };
+}
+
 export default function Home() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<TransactionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,9 +31,16 @@ export default function Home() {
     try {
       const result = await getTransactionFlow(chain, hash);
       setData(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.response?.data?.message || 'Failed to fetch transaction data. Ensure the hash and chain are correct.');
+      const message =
+        typeof err === 'object' &&
+        err &&
+        'response' in err &&
+        typeof (err as { response?: { data?: { message?: string } } }).response?.data?.message === 'string'
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : 'Failed to fetch transaction data. Ensure the hash and chain are correct.';
+      setError(message || 'An unknown error occurred.');
     } finally {
       setLoading(false);
     }
@@ -76,7 +94,7 @@ export default function Home() {
 
               {/* Graph Visualization - Full Width */}
               <div className="w-full border-t border-gray-800 bg-black/60 backdrop-blur-sm" style={{ height: '90vh', minHeight: '900px' }}>
-                  <TransactionFlow data={data} />
+                  <TransactionFlow data={data as any} />
               </div>
           </div>
       )}
