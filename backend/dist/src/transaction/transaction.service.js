@@ -424,4 +424,12 @@ exports.TransactionService = TransactionService = TransactionService_1 = __decor
     __metadata("design:paramtypes", [labeling_service_1.LabelingService,
         metasleuth_service_1.MetaSleuthService])
 ], TransactionService);
+return 'ETH';
+'bnb';
+return 'BNB';
+'base';
+return 'ETH';
+'arbitrum';
+return 'ETH';
+return 'ETH';
 //# sourceMappingURL=transaction.service.js.map

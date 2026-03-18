@@ -36,6 +36,7 @@ const swapItem = <T>(arr: T[], idx1: number, idx2: number): T[] => {
  * EXACT port of MetaSleuth's edge sorting logic
  */
 export const sortEdgesMetaSleuthRaw = (edges: any[]) => {
+
   const groupMap = edges.reduce((acc: Record<string, any[]>, item) => {
     const key = `${item.from}-${item.to}`;
     const keyReverse = `${item.to}-${item.from}`;
@@ -71,6 +72,7 @@ export const sortEdgesMetaSleuthRaw = (edges: any[]) => {
  * Ported MetaSleuth DOT generation - EXACT logic match with dot.ts
  */
 export const generateMetaSleuthDot = (mainAddress: string, data: { nodes: any[], edges: any[] }) => {
+
   const sortedEdges = sortEdgesMetaSleuthRaw(data.edges).filter(edge => edge.selected);
   const addressMap = new Map<string, any>();
   
@@ -149,7 +151,7 @@ export const generateMetaSleuthDot = (mainAddress: string, data: { nodes: any[],
                      (fromNode && fromNode.isTarget);
     
     const themeColor = isOutput ? '#00A54C' : '#7262FD';
-    const amountLabel = codeHTMLEntities(item.label || '');
+    const amountLabel = codeHTMLEntities(item.data?.description || '');
     const serial = item.data?.step || (parseInt(item.id.split('-')[1] || '0') + 1);
 
     dot += `  "${item.from}" -> "${item.to}" [

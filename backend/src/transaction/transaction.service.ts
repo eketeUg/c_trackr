@@ -626,3 +626,15 @@ export class TransactionService {
     }
   }
 }
+        return 'ETH';
+      case 'bnb':
+        return 'BNB';
+      case 'base':
+        return 'ETH';
+      case 'arbitrum':
+        return 'ETH';
+      default:
+        return 'ETH';
+    }
+  }
+}
