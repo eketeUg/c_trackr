@@ -16,6 +16,7 @@ export interface TransactionNode {
   label?: string;
   type?: string;
   image?: string;
+  logo?: string;
 }
 
 export interface TransactionEdge {
