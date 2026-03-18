@@ -1,158 +1,206 @@
-"use client";
+'use client';
 
-import React, { useEffect, useRef } from "react";
-import { graphviz } from "d3-graphviz";
-import genDotStr, { FundFlowNode, FundFlowEdge, FundFlowRes } from "./MetaSleuthGraph/dot";
-import { initNodes } from "./MetaSleuthGraph/graph";
-import { NodeType } from "./MetaSleuthGraph/enum";
+import React, { useEffect, useRef, useState } from 'react';
+import * as d3 from 'd3';
+import { graphviz } from 'd3-graphviz';
+import { 
+  sortEdgesMetaSleuthRaw, 
+  generateMetaSleuthDot,
+  codeHTMLEntities 
+} from '../lib/metasleuthLayout';
 
-interface TransactionNode {
+export interface TransactionNode {
   id: string;
-  label: string;
-  type: "wallet" | "contract";
-  data?: Record<string, unknown>;
+  address?: string;
+  isContract?: boolean;
+  label?: string;
+  type?: string;
+  image?: string;
 }
 
-interface TransactionEdge {
+export interface TransactionEdge {
   source: string;
   target: string;
-  label: string;
-  type: "transfer" | "swap";
-  tokenAddress?: string;
-  selected?: boolean;
   from?: string;
   to?: string;
-  data?: Record<string, unknown> & {
-    selected?: boolean;
-    tokenLabel?: string;
-    tokenSymbol?: string;
-    detail?: Array<{ date?: string }>;
-    ts?: string;
-    amount?: string | number;
-    step?: number;
-    serial?: number;
-    type?: string;
-    kind?: string;
-    suspiciousFake?: boolean;
-  };
-}
-
-interface MetaData {
-  hash: string;
-  timestamp: string;
-  blockNumber: number;
-  status: string;
-  focusAddress?: string;
-  focusNodeId?: string;
+  fromAddress?: string;
+  toAddress?: string;
+  tokenAddress?: string;
+  label?: string;
+  type?: string;
+  selected?: boolean;
+  data?: any;
 }
 
 interface TransactionFlowProps {
   data: {
     nodes: TransactionNode[];
     edges: TransactionEdge[];
-    metadata: MetaData;
-  } | null;
+  };
+  targetAddress: string;
+  chain?: string;
 }
 
-const getPrimaryEndpoint = (edge: TransactionEdge, key: "source" | "target") => {
-  if (edge?.[key]) return String(edge[key]).toLowerCase();
-  if (key === "source" && edge?.from) return String(edge.from).toLowerCase();
-  if (key === "target" && edge?.to) return String(edge.to).toLowerCase();
-  return "";
-};
+import { createRoot } from 'react-dom/client';
+import CustomNode from './CustomNode';
 
-const deriveFocusNodeId = (nodes: TransactionNode[], edges: TransactionEdge[], metadata?: MetaData) => {
-  const fromMetadata =
-    metadata?.focusAddress ??
-    metadata?.focusNodeId ??
-    (metadata?.hash?.startsWith("0x") && metadata.hash.length > 40 ? metadata.hash : "");
-  if (fromMetadata) {
-    const exact = nodes.find((node) => node.id.toLowerCase() === fromMetadata.toLowerCase());
-    if (exact) return exact.id.toLowerCase();
-  }
+// ... (existing interfaces)
 
-  const degree = new Map<string, number>();
-  edges.forEach((edge) => {
-    const src = getPrimaryEndpoint(edge, "source");
-    const tgt = getPrimaryEndpoint(edge, "target");
-    degree.set(src, (degree.get(src) || 0) + 1);
-    degree.set(tgt, (degree.get(tgt) || 0) + 1);
-  });
-  let best = "";
-  let bestDegree = -1;
-  degree.forEach((score, nodeId) => {
-    if (score > bestDegree) {
-      best = nodeId;
-      bestDegree = score;
-    }
-  });
-  return best;
-};
-
-export default function TransactionFlow({ data }: TransactionFlowProps) {
-  const graphContainerRef = useRef<HTMLDivElement>(null);
+const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, chain = 'ethereum' }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const rootsRef = useRef<any[]>([]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || !data.nodes || !containerRef.current) return;
 
-    const rawEdges: TransactionEdge[] = data.edges.filter(
-      (edge) => edge.selected === true || edge.data?.selected === true
-    );
-    const edgesToUse = rawEdges.length > 0 ? rawEdges : data.edges;
+    const renderGraph = async () => {
+      setIsLoading(true);
+      // Clean up previous roots
+      rootsRef.current.forEach(root => root.unmount());
+      rootsRef.current = [];
 
-    const focusNodeId = deriveFocusNodeId(data.nodes, edgesToUse, data.metadata);
-
-    const activeNodeIds = new Set<string>();
-    edgesToUse.forEach(edge => {
-      activeNodeIds.add(getPrimaryEndpoint(edge, "source"));
-      activeNodeIds.add(getPrimaryEndpoint(edge, "target"));
-    });
-
-    const fundFlowNodes: FundFlowNode[] = data.nodes
-      .filter((node) => activeNodeIds.has(node.id.toLowerCase()) || node.id.toLowerCase() === focusNodeId)
-      .map((n) => ({
-        id: n.id.toLowerCase(),
-        address: n.id,
-        label: n.label,
-        type: NodeType.NORMAL,
-        selected: true,
-        chain: 'ethereum',
-        color: n.id.toLowerCase() === focusNodeId ? '#b89a4f' : '#41454f',
-      }));
-
-    const fundFlowEdges: FundFlowEdge[] = edgesToUse
-      .filter(e => getPrimaryEndpoint(e, "source") && getPrimaryEndpoint(e, "target"))
-      .map(e => ({
-        from: getPrimaryEndpoint(e, "source"),
-        to: getPrimaryEndpoint(e, "target"),
-        serial: Number(e.data?.step || e.data?.serial || 0),
-        description: e.data?.amount ? String(e.data.amount) + (e.data.tokenSymbol ? ` ${e.data.tokenSymbol}` : '') : '',
-        selected: true,
-      }));
-
-    const fundFlow: FundFlowRes = { nodes: fundFlowNodes, edges: fundFlowEdges };
-
-    if (graphContainerRef.current) {
       try {
-        graphviz(graphContainerRef.current)
+        const engineEdges = data.edges.map((e, index) => ({
+          ...e,
+          from: (e.source || e.fromAddress || '').toString().trim(),
+          to: (e.target || e.toAddress || '').toString().trim(),
+          id: `e-${index}`,
+          selected: e.selected !== false
+        }));
+
+        const dot = generateMetaSleuthDot(targetAddress, { nodes: data.nodes, edges: engineEdges });
+
+        const gv = graphviz(containerRef.current!)
           .options({
-            zoom: true,
-            fit: true,
             useWorker: false,
+            width: containerRef.current!.clientWidth,
+            height: containerRef.current!.clientHeight || 800,
+            fit: true,
+            zoom: true,
           })
-          .on("end", () => {
-            initNodes(fundFlow);
-          })
-          .renderDot(genDotStr(focusNodeId || "", fundFlow));
-      } catch (e) {
-        console.error("D3-Graphviz Error:", e);
+          .renderDot(dot)
+          .on('end', () => {
+            setIsLoading(false);
+            applyMetaSleuthInteractivity();
+          });
+
+      } catch (error) {
+        console.error('Graphviz Render Error:', error);
+        setIsLoading(false);
       }
-    }
-  }, [data]);
+    };
+
+    const applyMetaSleuthInteractivity = () => {
+      const svg = d3.select(containerRef.current).select('svg');
+      if (svg.empty()) return;
+
+      svg.attr('width', '100%').attr('height', '100%');
+
+      // MetaSleuth Style: Dark Background
+      svg.style('background', '#16181D');
+      
+      // Hide the default white polygon background generated by Graphviz
+      svg.select('polygon').attr('fill', '#16181D').attr('stroke', 'transparent');
+
+      // Inject Custom React Nodes via foreignObject
+      const nodes = svg.selectAll('g.node');
+      console.log('Detected node groups for injection:', nodes.size());
+
+      nodes.each(function() {
+        const node = d3.select(this);
+        const nodeId = node.select('title').text().trim();
+        const nodeData = data.nodes.find(n => n.id === nodeId);
+        
+        if (!nodeData) return;
+
+        // Get the bounding box of the node group to find its center
+        // Even if there's no transform on the <g>, the bbox will be in SVG coordinates
+        const bbox = (this as SVGGElement).getBBox();
+        const cx = bbox.x + bbox.width / 2;
+        const cy = bbox.y + bbox.height / 2;
+
+        // Hide the default Graphviz rectangle/text
+        node.selectAll('polygon, rect, path, text, ellipse').style('opacity', '0').style('pointer-events', 'none');
+
+        // Check if foreignObject already exists to avoid duplicates
+        if (!node.select('foreignObject').empty()) return;
+
+        const width = 380;
+        const height = 100;
+
+        // Position the foreignObject centered on (cx, cy)
+        const fo = node.append('foreignObject')
+          .attr('width', width)
+          .attr('height', height)
+          .attr('x', cx - width / 2)
+          .attr('y', cy - height / 2)
+          .style('pointer-events', 'all')
+          .style('overflow', 'visible');
+
+        const div = fo.append('xhtml:div')
+          .style('width', `${width}px`)
+          .style('height', `${height}px`)
+          .style('display', 'flex')
+          .style('align-items', 'center')
+          .style('justify-content', 'center');
+
+        const root = createRoot(div.node() as HTMLElement);
+        root.render(
+          <div className="w-[380px] h-[100px] flex items-center justify-center">
+             <CustomNode 
+                data={{
+                  address: nodeData.address || nodeId,
+                  label: nodeData.label || '',
+                  logo: nodeData.image || nodeData.logo,
+                  chain: chain,
+                  isTarget: (nodeData.address || '').toLowerCase().includes(targetAddress.toLowerCase()) || nodeId.toLowerCase().includes(targetAddress.toLowerCase())
+                }}
+             />
+          </div>
+        );
+        rootsRef.current.push(root);
+      });
+
+      // Highlight the Central Node (optional, but MetaSleuth-like)
+      d3.selectAll('.node').filter(function() {
+        const title = d3.select(this).select('title').text() || '';
+        return title.toLowerCase().includes(targetAddress.toLowerCase());
+      }).raise();
+
+      // Style Edges to match MetaSleuth Sleekness
+      d3.selectAll('.edge').each(function() {
+        const edge = d3.select(this);
+        const path = edge.select('path');
+        const polygon = edge.select('polygon'); // The arrow head
+        
+        // Ensure high-visibility for edges
+        path.attr('stroke-width', '2');
+        
+        // Hide default Graphviz edge label tables if we want to replace them
+        // For now, let's keep them and just style the fonts
+        edge.selectAll('text').attr('fill', '#FFFFFF').style('font-family', 'Inter, sans-serif');
+      });
+    };
+
+    renderGraph();
+  }, [data, targetAddress, chain]);
 
   return (
-    <div style={{ width: "100%", height: "100%", background: "#1c1f26", overflow: "hidden" }}>
-      <div id="graph0" ref={graphContainerRef} style={{ width: "100%", height: "100%" }} />
+    <div className="relative w-full h-full min-h-[800px] bg-[#16181D] overflow-hidden">
+      {isLoading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#16181D]/80">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      )}
+      <div 
+        ref={containerRef} 
+        id="graph" 
+        className="w-full h-full"
+        style={{ cursor: 'grab' }}
+      />
     </div>
   );
-}
+};
+
+export default TransactionFlow;

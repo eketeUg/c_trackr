@@ -26,7 +26,10 @@ export const swapItem = <T>(arr: T[], index1: number, index2: number): T[] => {
 };
 
 export const getChainLogo = (chain: string) => {
-  // Map standard chains to some placeholder or known logo if available. 
-  // In c_trackr, we might just use a placeholder or the actual image.
-  return 'https://metasleuth.io/assets/images/chains/eth.png'; // Placeholder fallback
+  const c = chain.toLowerCase();
+  if (c === 'ethereum' || c === 'eth') return '/images/ethereum_logo.png';
+  if (c === 'bnb' || c === 'bsc') return '/images/bnb_logo.png';
+  if (c === 'base') return '/images/base_logo.png';
+  if (c === 'arbitrum' || c === 'arb') return '/images/arbitrum.png';
+  return '/images/ethereum_logo.png'; // Default
 };

@@ -23,8 +23,12 @@ export default function Home() {
   const [data, setData] = useState<TransactionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchChain, setSearchChain] = useState<string>('ethereum');
 
   const handleSearch = async (chain: string, hash: string) => {
+    setSearchQuery(hash);
+    setSearchChain(chain);
     setLoading(true);
     setError(null);
     setData(null);
@@ -94,7 +98,7 @@ export default function Home() {
 
               {/* Graph Visualization - Full Width */}
               <div className="w-full border-t border-gray-800 bg-black/60 backdrop-blur-sm" style={{ height: '90vh', minHeight: '900px' }}>
-                  <TransactionFlow data={data as any} />
+                  <TransactionFlow data={data as any} targetAddress={searchQuery} chain={searchChain} />
               </div>
           </div>
       )}
