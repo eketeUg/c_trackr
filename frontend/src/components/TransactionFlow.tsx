@@ -125,12 +125,6 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
       const result = await getAddressFlow(chain, address);
 
       if (result && result.nodes && result.edges) {
-        console.log('Expansion Data Received:', {
-          address,
-          newNodeCount: result.nodes.length,
-          newEdgeCount: result.edges.length
-        });
-        
         expandedAddressesRef.current.add(address.toLowerCase());
 
         setGraphState(prev => {
@@ -188,8 +182,6 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
     if (!graphState || !graphState.nodes || !containerRef.current) return;
 
     const renderGraph = async () => {
-      console.log('Starting Graphviz Render...', { nodeCount: graphState.nodes.length });
-      
       // Capture and defer cleanup of previous roots to avoid React race condition
       const oldRoots = [...rootsRef.current];
       rootsRef.current = [];
@@ -229,7 +221,6 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
           .transition(() => d3.transition().duration(0)) // Disable transitions for faster/reliable updates
           .renderDot(dot)
           .on('end', () => {
-            console.log('Graphviz Render Complete');
             setIsLoading(false);
             applyMetaSleuthInteractivity();
           });
@@ -281,17 +272,7 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         // Hide the default Graphviz rectangle/text for all nodes
         node.selectAll('polygon, rect, path, text, ellipse').style('opacity', '0').style('pointer-events', 'none');
         
-        if (!nodeData) {
-          console.warn('Lookup Failed for:', nodeId);
-          console.log('Available node IDs in graphState:', graphState.nodes.map(n => n.id).slice(0, 5), '...');
-          return;
-        }
-
-        console.log(`Injecting Node [${nodeId}]:`, {
-          resolvedId: nodeData.id,
-          address: nodeData.address || (nodeData as any).data?.address,
-          label: nodeData.label
-        });
+        if (!nodeData) return;
 
         const bbox = (this as SVGGElement).getBBox();
         const cx = bbox.x + bbox.width / 2;
