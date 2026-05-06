@@ -121,12 +121,13 @@ const CustomNode = ({ data, onAnalyse, isAnalysing }: CustomNodeProps) => {
       {/* Interactive Dropdown */}
       {showDropdown && (
         <div className="absolute top-[105%] left-0 w-full bg-[#1A1D20] rounded-xl border border-gray-700 shadow-2xl z-50 p-2 overflow-hidden animate-in fade-in slide-in-from-top-2">
+        <div className="flex flex-row gap-1.5">
           <button 
             onClick={copyAddress}
-            className="w-full flex items-center px-4 py-3 text-sm text-gray-300 hover:bg-[#2A2D30] hover:text-white rounded-lg transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm text-gray-300 hover:bg-[#2A2D30] hover:text-white rounded-lg transition-colors"
           >
-            {copied ? <Check className="w-4 h-4 mr-3 text-green-500" /> : <Copy className="w-4 h-4 mr-3" />}
-            {copied ? 'Copied!' : 'Copy Address'}
+            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+            {copied ? 'Copied!' : 'Copy'}
           </button>
 
           {/* Analyse Button */}
@@ -135,7 +136,7 @@ const CustomNode = ({ data, onAnalyse, isAnalysing }: CustomNodeProps) => {
               onClick={handleAnalyse}
               disabled={isAnalysing || data.isExpanded}
               className={clsx(
-                "w-full flex items-center px-4 py-3 text-sm rounded-lg transition-colors",
+                "flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm rounded-lg transition-colors",
                 data.isExpanded 
                   ? "text-emerald-400/60 cursor-default"
                   : isAnalysing
@@ -144,15 +145,16 @@ const CustomNode = ({ data, onAnalyse, isAnalysing }: CustomNodeProps) => {
               )}
             >
               {isAnalysing ? (
-                <Loader2 className="w-4 h-4 mr-3 animate-spin text-blue-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
               ) : data.isExpanded ? (
-                <Check className="w-4 h-4 mr-3 text-emerald-400" />
+                <Check className="w-4 h-4 text-emerald-400" />
               ) : (
-                <Search className="w-4 h-4 mr-3" />
+                <Search className="w-4 h-4" />
               )}
-              {isAnalysing ? 'Analysing...' : data.isExpanded ? 'Already Expanded' : 'Analyse'}
+              {isAnalysing ? 'Analysing...' : data.isExpanded ? 'Expanded' : 'Analyse'}
             </button>
           )}
+        </div>
         </div>
       )}
     </div>

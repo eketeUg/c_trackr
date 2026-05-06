@@ -70,24 +70,32 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
   const activeEdgeRef = useRef<string | null>(null);
   const engineEdgesRef = useRef<any[]>([]);
 
-  // Merged data state — starts from props, grows as nodes are expanded
-  const [mergedData, setMergedData] = useState<{
+  // Consolidated state for graph data and expansion tracking
+  const [graphState, setGraphState] = useState<{
     nodes: TransactionNode[];
     edges: TransactionEdge[];
-  }>({ nodes: data.nodes, edges: data.edges });
+    expandedCount: number;
+  }>({ 
+    nodes: data.nodes, 
+    edges: data.edges,
+    expandedCount: 0 
+  });
 
-  // Track which addresses have been expanded
-  const [expandedAddresses, setExpandedAddresses] = useState<Set<string>>(new Set());
-  // Track which address is currently being analysed
-  const [analysingAddress, setAnalysingAddress] = useState<string | null>(null);
+  // Use refs for analysis UI state so they don't trigger graph re-renders
+  const expandedAddressesRef = useRef<Set<string>>(new Set());
+  const analysingAddressRef = useRef<string | null>(null);
 
   const mainTxHash = data.metadata?.hash || '';
 
   // Reset merged data when the initial data changes (new search)
   useEffect(() => {
-    setMergedData({ nodes: data.nodes, edges: data.edges });
-    setExpandedAddresses(new Set());
-    setAnalysingAddress(null);
+    setGraphState({ 
+      nodes: data.nodes, 
+      edges: data.edges,
+      expandedCount: 0 
+    });
+    expandedAddressesRef.current = new Set();
+    analysingAddressRef.current = null;
   }, [data]);
 
   const handleCopy = useCallback(async (text: string) => {
@@ -109,47 +117,50 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
 
   // Handle node analyse — fetch address flow and merge
   const handleAnalyse = useCallback(async (address: string) => {
-    if (expandedAddresses.has(address.toLowerCase()) || analysingAddress) return;
+    if (expandedAddressesRef.current.has(address.toLowerCase()) || analysingAddressRef.current) return;
 
-    setAnalysingAddress(address);
+    analysingAddressRef.current = address;
 
     try {
       const result = await getAddressFlow(chain, address);
 
       if (result && result.nodes && result.edges) {
-        setMergedData(prev => {
+        console.log('Expansion Data Received:', {
+          address,
+          newNodeCount: result.nodes.length,
+          newEdgeCount: result.edges.length
+        });
+        
+        expandedAddressesRef.current.add(address.toLowerCase());
+
+        setGraphState(prev => {
           const existingNodeIds = new Set(prev.nodes.map(n => n.id));
           const existingEdgeKeys = new Set(
             prev.edges.map(e => `${e.source}-${e.target}-${e.label || ''}`)
           );
 
-          // Deduplicate nodes
           const newNodes = result.nodes.filter(
             (n: TransactionNode) => !existingNodeIds.has(n.id)
           );
 
-          // Deduplicate edges
           const newEdges = result.edges.filter((e: TransactionEdge) => {
             const key = `${e.source}-${e.target}-${e.label || ''}`;
             return !existingEdgeKeys.has(key);
           });
 
-          console.log(`Expanding ${address}: +${newNodes.length} nodes, +${newEdges.length} edges`);
-
           return {
             nodes: [...prev.nodes, ...newNodes],
             edges: [...prev.edges, ...newEdges],
+            expandedCount: expandedAddressesRef.current.size
           };
         });
-
-        setExpandedAddresses(prev => new Set(prev).add(address.toLowerCase()));
       }
     } catch (error) {
       console.error('Failed to analyse address:', error);
     } finally {
-      setAnalysingAddress(null);
+      analysingAddressRef.current = null;
     }
-  }, [chain, expandedAddresses, analysingAddress]);
+  }, [chain]);
 
   // Dismiss tooltip on outside click
   useEffect(() => {
@@ -174,18 +185,29 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
 
   // Main render effect — triggers whenever mergedData changes
   useEffect(() => {
-    if (!mergedData || !mergedData.nodes || !containerRef.current) return;
+    if (!graphState || !graphState.nodes || !containerRef.current) return;
 
     const renderGraph = async () => {
-      setIsLoading(true);
-      // Clean up previous roots
-      rootsRef.current.forEach(root => root.unmount());
+      console.log('Starting Graphviz Render...', { nodeCount: graphState.nodes.length });
+      
+      // Capture and defer cleanup of previous roots to avoid React race condition
+      const oldRoots = [...rootsRef.current];
       rootsRef.current = [];
+      setTimeout(() => {
+        oldRoots.forEach(root => root.unmount());
+      }, 0);
+
+      setIsLoading(true);
       setEdgeTooltip(null);
       activeEdgeRef.current = null;
 
+      // Clear previous Graphviz SVG to prevent conflicts
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
+
       try {
-        const engineEdges = mergedData.edges.map((e, index) => ({
+        const engineEdges = graphState.edges.map((e, index) => ({
           ...e,
           from: (e.source || e.fromAddress || '').toString().trim(),
           to: (e.target || e.toAddress || '').toString().trim(),
@@ -194,7 +216,7 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         }));
         engineEdgesRef.current = engineEdges;
 
-        const dot = generateMetaSleuthDot(targetAddress, { nodes: mergedData.nodes, edges: engineEdges });
+        const dot = generateMetaSleuthDot(targetAddress, { nodes: graphState.nodes, edges: engineEdges });
 
         const gv = graphviz(containerRef.current!)
           .options({
@@ -204,8 +226,10 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
             fit: true,
             zoom: true,
           })
+          .transition(() => d3.transition().duration(0)) // Disable transitions for faster/reliable updates
           .renderDot(dot)
           .on('end', () => {
+            console.log('Graphviz Render Complete');
             setIsLoading(false);
             applyMetaSleuthInteractivity();
           });
@@ -237,10 +261,10 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         const nodeId = node.select('title').text().trim();
         
         // Robust node lookup: try ID match, then address match
-        let nodeData = mergedData.nodes.find(n => n.id === nodeId);
+        let nodeData = graphState.nodes.find(n => n.id === nodeId);
         if (!nodeData) {
           // Try matching by address field (MetaSleuth IDs can differ)
-          nodeData = mergedData.nodes.find(n => 
+          nodeData = graphState.nodes.find(n => 
             (n.address && n.address.toLowerCase() === nodeId.toLowerCase()) ||
             ((n as any).data?.address && (n as any).data.address.toLowerCase() === nodeId.toLowerCase())
           );
@@ -248,7 +272,7 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         if (!nodeData) {
           // Try partial match (MetaSleuth IDs like "1-0xabc..." contain the address after "-")
           const strippedId = nodeId.includes('-') ? nodeId.substring(nodeId.indexOf('-') + 1) : nodeId;
-          nodeData = mergedData.nodes.find(n => {
+          nodeData = graphState.nodes.find(n => {
             const nAddr = n.address || (n as any).data?.address || '';
             return nAddr.toLowerCase() === strippedId.toLowerCase();
           });
@@ -258,9 +282,16 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         node.selectAll('polygon, rect, path, text, ellipse').style('opacity', '0').style('pointer-events', 'none');
         
         if (!nodeData) {
-          console.warn('No matching node data found for Graphviz node:', nodeId);
+          console.warn('Lookup Failed for:', nodeId);
+          console.log('Available node IDs in graphState:', graphState.nodes.map(n => n.id).slice(0, 5), '...');
           return;
         }
+
+        console.log(`Injecting Node [${nodeId}]:`, {
+          resolvedId: nodeData.id,
+          address: nodeData.address || (nodeData as any).data?.address,
+          label: nodeData.label
+        });
 
         const bbox = (this as SVGGElement).getBBox();
         const cx = bbox.x + bbox.width / 2;
@@ -294,8 +325,8 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         const cleanAddress = nodeAddress.includes('-') 
           ? nodeAddress.substring(nodeAddress.indexOf('-') + 1) 
           : nodeAddress;
-        const isExpanded = expandedAddresses.has(cleanAddress.toLowerCase());
-        const isCurrentlyAnalysing = analysingAddress?.toLowerCase() === cleanAddress.toLowerCase();
+        const isExpanded = expandedAddressesRef.current.has(cleanAddress.toLowerCase());
+        const isCurrentlyAnalysing = analysingAddressRef.current?.toLowerCase() === cleanAddress.toLowerCase();
 
         const root = createRoot(div.node() as HTMLElement);
         root.render(
@@ -394,7 +425,15 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
     };
 
     renderGraph();
-  }, [mergedData, targetAddress, chain, mainTxHash, expandedAddresses, analysingAddress, handleAnalyse]);
+
+    return () => {
+      // Cleanup on effect re-run or unmount
+      rootsRef.current.forEach(root => {
+        setTimeout(() => root.unmount(), 0);
+      });
+      rootsRef.current = [];
+    };
+  }, [graphState, targetAddress, chain, mainTxHash]);
 
   return (
     <div className="relative w-full h-full min-h-[800px] bg-[#16181D] overflow-hidden">
@@ -411,10 +450,10 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
       />
 
       {/* Expansion indicator */}
-      {expandedAddresses.size > 0 && (
+      {graphState.expandedCount > 0 && (
         <div className="absolute top-4 right-4 z-40 bg-[#1E2028]/90 border border-gray-700/50 rounded-lg px-3 py-2 backdrop-blur-sm">
           <span className="text-emerald-400 text-xs font-medium">
-            ✦ {expandedAddresses.size} node{expandedAddresses.size > 1 ? 's' : ''} expanded
+            ✦ {graphState.expandedCount} node{graphState.expandedCount > 1 ? 's' : ''} expanded
           </span>
         </div>
       )}

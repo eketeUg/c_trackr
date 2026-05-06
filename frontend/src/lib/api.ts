@@ -14,8 +14,8 @@ export const getTransactionFlow = async (chain: string, hash: string) => {
 };
 
 export const getAddressFlow = async (chain: string, address: string) => {
-  const response = await api.get('/transaction/address-flow', {
-    params: { chain, address },
+  const response = await api.get('/transaction/flow', {
+    params: { chain, hash: address },
   });
   return response.data;
 };
