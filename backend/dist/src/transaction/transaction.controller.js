@@ -26,6 +26,12 @@ let TransactionController = class TransactionController {
         }
         return this.transactionService.getTransactionFlow(chain, hash);
     }
+    async getAddressFlow(chain, address) {
+        if (!chain || !address) {
+            throw new common_1.BadRequestException('Chain and Address are required');
+        }
+        return this.transactionService.getAddressFlow(chain, address);
+    }
 };
 exports.TransactionController = TransactionController;
 __decorate([
@@ -36,6 +42,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], TransactionController.prototype, "getTransactionFlow", null);
+__decorate([
+    (0, common_1.Get)('address-flow'),
+    __param(0, (0, common_1.Query)('chain')),
+    __param(1, (0, common_1.Query)('address')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], TransactionController.prototype, "getAddressFlow", null);
 exports.TransactionController = TransactionController = __decorate([
     (0, common_1.Controller)('transaction'),
     __metadata("design:paramtypes", [transaction_service_1.TransactionService])

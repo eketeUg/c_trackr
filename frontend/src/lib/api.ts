@@ -12,3 +12,10 @@ export const getTransactionFlow = async (chain: string, hash: string) => {
   });
   return response.data;
 };
+
+export const getAddressFlow = async (chain: string, address: string) => {
+  const response = await api.get('/transaction/address-flow', {
+    params: { chain, address },
+  });
+  return response.data;
+};

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { graphviz } from 'd3-graphviz';
 import { 
@@ -8,6 +8,7 @@ import {
   generateMetaSleuthDot,
   codeHTMLEntities 
 } from '../lib/metasleuthLayout';
+import { getAddressFlow } from '../lib/api';
 
 export interface TransactionNode {
   id: string;
@@ -37,6 +38,13 @@ interface TransactionFlowProps {
   data: {
     nodes: TransactionNode[];
     edges: TransactionEdge[];
+    metadata?: {
+      hash?: string;
+      status?: string;
+      blockNumber?: number;
+      gasUsed?: string;
+      timestamp?: string;
+    };
   };
   targetAddress: string;
   chain?: string;
@@ -45,32 +53,148 @@ interface TransactionFlowProps {
 import { createRoot } from 'react-dom/client';
 import CustomNode from './CustomNode';
 
-// ... (existing interfaces)
+interface EdgeTooltip {
+  x: number;
+  y: number;
+  txHash: string;
+  label: string;
+  edgeId: string;
+}
 
 const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, chain = 'ethereum' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const rootsRef = useRef<any[]>([]);
+  const [edgeTooltip, setEdgeTooltip] = useState<EdgeTooltip | null>(null);
+  const [copied, setCopied] = useState(false);
+  const activeEdgeRef = useRef<string | null>(null);
+  const engineEdgesRef = useRef<any[]>([]);
 
+  // Merged data state — starts from props, grows as nodes are expanded
+  const [mergedData, setMergedData] = useState<{
+    nodes: TransactionNode[];
+    edges: TransactionEdge[];
+  }>({ nodes: data.nodes, edges: data.edges });
+
+  // Track which addresses have been expanded
+  const [expandedAddresses, setExpandedAddresses] = useState<Set<string>>(new Set());
+  // Track which address is currently being analysed
+  const [analysingAddress, setAnalysingAddress] = useState<string | null>(null);
+
+  const mainTxHash = data.metadata?.hash || '';
+
+  // Reset merged data when the initial data changes (new search)
   useEffect(() => {
-    if (!data || !data.nodes || !containerRef.current) return;
+    setMergedData({ nodes: data.nodes, edges: data.edges });
+    setExpandedAddresses(new Set());
+    setAnalysingAddress(null);
+  }, [data]);
+
+  const handleCopy = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, []);
+
+  // Handle node analyse — fetch address flow and merge
+  const handleAnalyse = useCallback(async (address: string) => {
+    if (expandedAddresses.has(address.toLowerCase()) || analysingAddress) return;
+
+    setAnalysingAddress(address);
+
+    try {
+      const result = await getAddressFlow(chain, address);
+
+      if (result && result.nodes && result.edges) {
+        setMergedData(prev => {
+          const existingNodeIds = new Set(prev.nodes.map(n => n.id));
+          const existingEdgeKeys = new Set(
+            prev.edges.map(e => `${e.source}-${e.target}-${e.label || ''}`)
+          );
+
+          // Deduplicate nodes
+          const newNodes = result.nodes.filter(
+            (n: TransactionNode) => !existingNodeIds.has(n.id)
+          );
+
+          // Deduplicate edges
+          const newEdges = result.edges.filter((e: TransactionEdge) => {
+            const key = `${e.source}-${e.target}-${e.label || ''}`;
+            return !existingEdgeKeys.has(key);
+          });
+
+          console.log(`Expanding ${address}: +${newNodes.length} nodes, +${newEdges.length} edges`);
+
+          return {
+            nodes: [...prev.nodes, ...newNodes],
+            edges: [...prev.edges, ...newEdges],
+          };
+        });
+
+        setExpandedAddresses(prev => new Set(prev).add(address.toLowerCase()));
+      }
+    } catch (error) {
+      console.error('Failed to analyse address:', error);
+    } finally {
+      setAnalysingAddress(null);
+    }
+  }, [chain, expandedAddresses, analysingAddress]);
+
+  // Dismiss tooltip on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-edge-tooltip]')) return;
+      if (target.closest('.edge')) return;
+      
+      setEdgeTooltip(null);
+      if (activeEdgeRef.current) {
+        d3.selectAll('.edge').each(function () {
+          const edge = d3.select(this);
+          edge.classed('edge-highlighted', false);
+          edge.select('path:not(.edge-hitarea)').attr('stroke-width', '2').style('filter', null);
+        });
+        activeEdgeRef.current = null;
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Main render effect — triggers whenever mergedData changes
+  useEffect(() => {
+    if (!mergedData || !mergedData.nodes || !containerRef.current) return;
 
     const renderGraph = async () => {
       setIsLoading(true);
       // Clean up previous roots
       rootsRef.current.forEach(root => root.unmount());
       rootsRef.current = [];
+      setEdgeTooltip(null);
+      activeEdgeRef.current = null;
 
       try {
-        const engineEdges = data.edges.map((e, index) => ({
+        const engineEdges = mergedData.edges.map((e, index) => ({
           ...e,
           from: (e.source || e.fromAddress || '').toString().trim(),
           to: (e.target || e.toAddress || '').toString().trim(),
           id: `e-${index}`,
           selected: e.selected !== false
         }));
+        engineEdgesRef.current = engineEdges;
 
-        const dot = generateMetaSleuthDot(targetAddress, { nodes: data.nodes, edges: engineEdges });
+        const dot = generateMetaSleuthDot(targetAddress, { nodes: mergedData.nodes, edges: engineEdges });
 
         const gv = graphviz(containerRef.current!)
           .options({
@@ -111,18 +235,36 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
       nodes.each(function() {
         const node = d3.select(this);
         const nodeId = node.select('title').text().trim();
-        const nodeData = data.nodes.find(n => n.id === nodeId);
         
-        if (!nodeData) return;
+        // Robust node lookup: try ID match, then address match
+        let nodeData = mergedData.nodes.find(n => n.id === nodeId);
+        if (!nodeData) {
+          // Try matching by address field (MetaSleuth IDs can differ)
+          nodeData = mergedData.nodes.find(n => 
+            (n.address && n.address.toLowerCase() === nodeId.toLowerCase()) ||
+            ((n as any).data?.address && (n as any).data.address.toLowerCase() === nodeId.toLowerCase())
+          );
+        }
+        if (!nodeData) {
+          // Try partial match (MetaSleuth IDs like "1-0xabc..." contain the address after "-")
+          const strippedId = nodeId.includes('-') ? nodeId.substring(nodeId.indexOf('-') + 1) : nodeId;
+          nodeData = mergedData.nodes.find(n => {
+            const nAddr = n.address || (n as any).data?.address || '';
+            return nAddr.toLowerCase() === strippedId.toLowerCase();
+          });
+        }
 
-        // Get the bounding box of the node group to find its center
-        // Even if there's no transform on the <g>, the bbox will be in SVG coordinates
+        // Hide the default Graphviz rectangle/text for all nodes
+        node.selectAll('polygon, rect, path, text, ellipse').style('opacity', '0').style('pointer-events', 'none');
+        
+        if (!nodeData) {
+          console.warn('No matching node data found for Graphviz node:', nodeId);
+          return;
+        }
+
         const bbox = (this as SVGGElement).getBBox();
         const cx = bbox.x + bbox.width / 2;
         const cy = bbox.y + bbox.height / 2;
-
-        // Hide the default Graphviz rectangle/text
-        node.selectAll('polygon, rect, path, text, ellipse').style('opacity', '0').style('pointer-events', 'none');
 
         // Check if foreignObject already exists to avoid duplicates
         if (!node.select('foreignObject').empty()) return;
@@ -130,10 +272,9 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         const width = 380;
         const height = 100;
 
-        // Position the foreignObject centered on (cx, cy)
         const fo = node.append('foreignObject')
           .attr('width', width)
-          .attr('height', height)
+          .attr('height', height + 80) // Extra space for dropdown
           .attr('x', cx - width / 2)
           .attr('y', cy - height / 2)
           .style('pointer-events', 'all')
@@ -146,46 +287,114 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
           .style('align-items', 'center')
           .style('justify-content', 'center');
 
+        // Determine the address for this node — prefer top-level, then data.address, then nodeId
+        const nodeAddress = nodeData.address || 
+                           (nodeData as any).data?.address || 
+                           nodeId;
+        const cleanAddress = nodeAddress.includes('-') 
+          ? nodeAddress.substring(nodeAddress.indexOf('-') + 1) 
+          : nodeAddress;
+        const isExpanded = expandedAddresses.has(cleanAddress.toLowerCase());
+        const isCurrentlyAnalysing = analysingAddress?.toLowerCase() === cleanAddress.toLowerCase();
+
         const root = createRoot(div.node() as HTMLElement);
         root.render(
           <div className="w-[380px] h-[100px] flex items-center justify-center">
              <CustomNode 
                 data={{
-                  address: nodeData.address || nodeId,
+                  address: nodeAddress,
                   label: nodeData.label || '',
                   logo: nodeData.image || nodeData.logo,
                   chain: chain,
-                  isTarget: (nodeData.address || '').toLowerCase().includes(targetAddress.toLowerCase()) || nodeId.toLowerCase().includes(targetAddress.toLowerCase())
+                  isTarget: cleanAddress.toLowerCase().includes(targetAddress.toLowerCase()) || nodeId.toLowerCase().includes(targetAddress.toLowerCase()),
+                  isExpanded: isExpanded,
                 }}
+                onAnalyse={handleAnalyse}
+                isAnalysing={isCurrentlyAnalysing}
              />
           </div>
         );
         rootsRef.current.push(root);
       });
 
-      // Highlight the Central Node (optional, but MetaSleuth-like)
-      d3.selectAll('.node').filter(function() {
-        const title = d3.select(this).select('title').text() || '';
-        return title.toLowerCase().includes(targetAddress.toLowerCase());
-      }).raise();
-
-      // Style Edges to match MetaSleuth Sleekness
+      // Style Edges + Add click interaction
       d3.selectAll('.edge').each(function() {
         const edge = d3.select(this);
         const path = edge.select('path');
-        const polygon = edge.select('polygon'); // The arrow head
         
-        // Ensure high-visibility for edges
         path.attr('stroke-width', '2');
         
-        // Hide default Graphviz edge label tables if we want to replace them
-        // For now, let's keep them and just style the fonts
         edge.selectAll('text').attr('fill', '#FFFFFF').style('font-family', 'Inter, sans-serif');
+
+        edge.style('cursor', 'pointer');
+
+        // Thicken the clickable area with an invisible wider path
+        const pathD = path.attr('d');
+        if (pathD && edge.select('.edge-hitarea').empty()) {
+          edge.insert('path', ':first-child')
+            .attr('d', pathD)
+            .attr('stroke', 'transparent')
+            .attr('stroke-width', '16')
+            .attr('fill', 'none')
+            .attr('class', 'edge-hitarea');
+        }
+
+        edge.on('click', function(event: MouseEvent) {
+          event.stopPropagation();
+          const edgeId = d3.select(this).attr('id');
+          
+          // Toggle: clicking the same edge again dismisses
+          if (activeEdgeRef.current === edgeId) {
+            d3.selectAll('.edge').each(function() {
+              d3.select(this).classed('edge-highlighted', false);
+              d3.select(this).select('path:not(.edge-hitarea)').attr('stroke-width', '2').style('filter', null);
+            });
+            activeEdgeRef.current = null;
+            setEdgeTooltip(null);
+            return;
+          }
+
+          // Reset all edges
+          d3.selectAll('.edge').each(function() {
+            d3.select(this).classed('edge-highlighted', false);
+            d3.select(this).select('path:not(.edge-hitarea)').attr('stroke-width', '2').style('filter', null);
+          });
+
+          // Highlight clicked edge
+          const clickedEdge = d3.select(this);
+          clickedEdge.classed('edge-highlighted', true);
+          const clickedPath = clickedEdge.select('path:not(.edge-hitarea)');
+          clickedPath.attr('stroke-width', '4');
+          const edgeColor = clickedPath.attr('stroke') || '#FFFFFF';
+          clickedPath.style('filter', `drop-shadow(0 0 6px ${edgeColor})`);
+          activeEdgeRef.current = edgeId;
+
+          // Look up the original edge data
+          const edgeData = engineEdgesRef.current.find((e: any) => e.id === edgeId);
+          const txHash = edgeData?.data?.txHash || mainTxHash;
+          const label = edgeData?.data?.description || edgeData?.label || '';
+
+          const containerRect = containerRef.current!.getBoundingClientRect();
+          const tooltipX = event.clientX - containerRect.left;
+          const tooltipY = event.clientY - containerRect.top;
+
+          setEdgeTooltip({
+            x: tooltipX,
+            y: tooltipY,
+            txHash,
+            label,
+            edgeId: edgeId || '',
+          });
+          setCopied(false);
+        });
       });
+
+      // Raise all edges above nodes so arrowheads are never blocked by node overlays
+      svg.selectAll('g.edge').raise();
     };
 
     renderGraph();
-  }, [data, targetAddress, chain]);
+  }, [mergedData, targetAddress, chain, mainTxHash, expandedAddresses, analysingAddress, handleAnalyse]);
 
   return (
     <div className="relative w-full h-full min-h-[800px] bg-[#16181D] overflow-hidden">
@@ -200,6 +409,74 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
         className="w-full h-full"
         style={{ cursor: 'grab' }}
       />
+
+      {/* Expansion indicator */}
+      {expandedAddresses.size > 0 && (
+        <div className="absolute top-4 right-4 z-40 bg-[#1E2028]/90 border border-gray-700/50 rounded-lg px-3 py-2 backdrop-blur-sm">
+          <span className="text-emerald-400 text-xs font-medium">
+            ✦ {expandedAddresses.size} node{expandedAddresses.size > 1 ? 's' : ''} expanded
+          </span>
+        </div>
+      )}
+
+      {/* Edge Tooltip */}
+      {edgeTooltip && (
+        <div
+          data-edge-tooltip
+          className="absolute z-[60] animate-in fade-in zoom-in-95 duration-200"
+          style={{
+            left: edgeTooltip.x,
+            top: edgeTooltip.y - 12,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="bg-[#1E2028] border border-gray-700/60 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl px-4 py-3 min-w-[320px] max-w-[420px]">
+            {/* Arrow pointing down */}
+            <div
+              className="absolute left-1/2 -translate-x-1/2 -bottom-[6px] w-3 h-3 bg-[#1E2028] border-r border-b border-gray-700/60 rotate-45"
+            />
+
+            {/* Label */}
+            {edgeTooltip.label && (
+              <div className="text-gray-400 text-[11px] uppercase tracking-wider mb-2 font-medium">
+                Transfer Details
+              </div>
+            )}
+
+            {/* Description */}
+            {edgeTooltip.label && (
+              <div className="text-gray-200 text-sm mb-3 leading-relaxed">
+                {edgeTooltip.label}
+              </div>
+            )}
+
+            {/* Transaction Hash */}
+            <div className="text-gray-400 text-[11px] uppercase tracking-wider mb-1.5 font-medium">
+              Transaction Hash
+            </div>
+            <div className="flex items-center gap-2 bg-[#16181D] rounded-lg px-3 py-2 border border-gray-800/50 group">
+              <code className="text-[12px] text-emerald-400 font-mono flex-1 truncate select-all">
+                {edgeTooltip.txHash}
+              </code>
+              <button
+                onClick={() => handleCopy(edgeTooltip.txHash)}
+                className="flex-shrink-0 p-1.5 rounded-md hover:bg-gray-700/50 transition-all duration-200 active:scale-90"
+                title="Copy transaction hash"
+              >
+                {copied ? (
+                  <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-gray-400 group-hover:text-gray-200 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

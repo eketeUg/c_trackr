@@ -12,4 +12,12 @@ export class TransactionController {
     }
     return this.transactionService.getTransactionFlow(chain, hash);
   }
+
+  @Get('address-flow')
+  async getAddressFlow(@Query('chain') chain: string, @Query('address') address: string) {
+    if (!chain || !address) {
+        throw new BadRequestException('Chain and Address are required');
+    }
+    return this.transactionService.getAddressFlow(chain, address);
+  }
 }

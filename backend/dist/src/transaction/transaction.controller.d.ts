@@ -23,4 +23,21 @@ export declare class TransactionController {
             status: string;
         };
     }>;
+    getAddressFlow(chain: string, address: string): Promise<{
+        nodes: any;
+        edges: any;
+        metadata: {
+            address: string;
+            timestamp: any;
+            status: string;
+        };
+    } | {
+        nodes: never[];
+        edges: never[];
+        metadata: {
+            address: string;
+            status: string;
+            timestamp?: undefined;
+        };
+    }>;
 }

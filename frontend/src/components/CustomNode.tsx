@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, ChevronDown, Check } from 'lucide-react';
+import { Copy, ChevronDown, Check, Search, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { getChainLogo } from '../lib/metaSleuthUtils'; // Reusing this utility
 
@@ -10,9 +10,17 @@ export interface CustomNodeData {
   logo?: string;
   type?: string;
   isTarget?: boolean;
+  isExpanded?: boolean;
 }
 
-const CustomNode = ({ data }: { data: CustomNodeData, isConnectable?: boolean }) => {
+interface CustomNodeProps {
+  data: CustomNodeData;
+  isConnectable?: boolean;
+  onAnalyse?: (address: string) => void;
+  isAnalysing?: boolean;
+}
+
+const CustomNode = ({ data, onAnalyse, isAnalysing }: CustomNodeProps) => {
   const [copied, setCopied] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -30,14 +38,29 @@ const CustomNode = ({ data }: { data: CustomNodeData, isConnectable?: boolean })
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleAnalyse = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAnalyse && !isAnalysing && !data.isExpanded) {
+      onAnalyse(displayAddress);
+    }
+  };
+
   return (
     <div 
       className={clsx(
         "relative rounded-2xl shadow-xl flex flex-col transition-all duration-300 w-[380px] h-[100px]",
-        data.isTarget ? "bg-[#252528] border-2 border-[#c1995c]" : "bg-[#252528] border border-gray-800 hover:outline hover:outline-2 hover:outline-blue-500"
+        data.isTarget ? "bg-[#252528] border-2 border-[#c1995c]" : "bg-[#252528] border border-gray-800 hover:outline hover:outline-2 hover:outline-blue-500",
+        data.isExpanded && !data.isTarget && "ring-2 ring-emerald-500/40"
       )}
       onClick={() => setShowDropdown(!showDropdown)}
     >
+      {/* Expanded indicator badge */}
+      {data.isExpanded && (
+        <div className="absolute -top-2 -right-2 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center z-10 shadow-lg shadow-emerald-500/30">
+          <Check className="w-3 h-3 text-white" />
+        </div>
+      )}
+
       {/* Node Content */}
       <div className="flex flex-row h-full w-full rounded-2xl overflow-hidden p-[1px]">
         <div className={clsx(
@@ -73,7 +96,7 @@ const CustomNode = ({ data }: { data: CustomNodeData, isConnectable?: boolean })
                 )}>
                   {data.label.length > 25 ? `${data.label.slice(0, 25)}...` : data.label}
                 </span>
-                <ChevronDown className={clsx("w-4 h-4 ml-2", data.isTarget ? "text-[#333]" : "text-gray-400")} />
+                <ChevronDown className={clsx("w-4 h-4 ml-2 transition-transform", data.isTarget ? "text-[#333]" : "text-gray-400", showDropdown && "rotate-180")} />
               </div>
             )}
             
@@ -105,6 +128,31 @@ const CustomNode = ({ data }: { data: CustomNodeData, isConnectable?: boolean })
             {copied ? <Check className="w-4 h-4 mr-3 text-green-500" /> : <Copy className="w-4 h-4 mr-3" />}
             {copied ? 'Copied!' : 'Copy Address'}
           </button>
+
+          {/* Analyse Button */}
+          {onAnalyse && (
+            <button 
+              onClick={handleAnalyse}
+              disabled={isAnalysing || data.isExpanded}
+              className={clsx(
+                "w-full flex items-center px-4 py-3 text-sm rounded-lg transition-colors",
+                data.isExpanded 
+                  ? "text-emerald-400/60 cursor-default"
+                  : isAnalysing
+                    ? "text-blue-400/60 cursor-wait"
+                    : "text-gray-300 hover:bg-[#2A2D30] hover:text-white"
+              )}
+            >
+              {isAnalysing ? (
+                <Loader2 className="w-4 h-4 mr-3 animate-spin text-blue-400" />
+              ) : data.isExpanded ? (
+                <Check className="w-4 h-4 mr-3 text-emerald-400" />
+              ) : (
+                <Search className="w-4 h-4 mr-3" />
+              )}
+              {isAnalysing ? 'Analysing...' : data.isExpanded ? 'Already Expanded' : 'Analyse'}
+            </button>
+          )}
         </div>
       )}
     </div>

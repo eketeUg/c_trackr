@@ -56,6 +56,7 @@ export class TransactionService {
 
         const mappedNodes = msNodes.map((node: any) => ({
           id: node.id,
+          address: node.address,
           label:
             node.label ||
             (node.address ? node.address.slice(0, 6) + '...' : node.id),
@@ -232,6 +233,84 @@ export class TransactionService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async getAddressFlow(chain: string, address: string) {
+    try {
+      const metaSleuthData = await this.metaSleuthService.fetchTransactionFlow(
+        chain,
+        address,
+      );
+      if (metaSleuthData && metaSleuthData.data) {
+        this.logger.log(`Received MetaSleuth Address Flow for ${address}`);
+
+        const msNodes = metaSleuthData.data.nodes || [];
+        const msEdges = metaSleuthData.data.edges || [];
+
+        // Sort edges by serial execution order
+        msEdges.sort((a: any, b: any) => (a.serial || 0) - (b.serial || 0));
+
+        const mappedNodes = msNodes.map((node: any) => ({
+          id: node.id,
+          address: node.address,
+          label:
+            node.label ||
+            (node.address ? node.address.slice(0, 6) + '...' : node.id),
+          type: node.isContract ? 'contract' : 'wallet',
+          image: node.logo || undefined,
+          data: {
+            fullLabel: node.label,
+            address: node.address,
+            url: node.url,
+            isContract: node.isContract,
+          },
+        }));
+
+        const mappedEdges = msEdges.map((edge: any) => ({
+          source: edge.from,
+          target: edge.to,
+          label: `${edge.amount} ${edge.tokenLabel || ''}`,
+          type: edge.isCreate ? 'create' : 'transfer',
+          tokenAddress: edge.token,
+          selected: edge.selected,
+          data: {
+            amount: edge.amount,
+            tokenSymbol: edge.tokenLabel,
+            tokenIcon: edge.tokenLink,
+            timestamp: edge.ts,
+            step: edge.serial,
+            description: edge.description,
+            txHash: edge.detail?.[0]?.hash || '',
+            value: edge.value,
+            selected: edge.selected,
+            suspiciousFake: edge.suspiciousFake,
+          },
+        }));
+
+        return {
+          nodes: mappedNodes,
+          edges: mappedEdges,
+          metadata: {
+            address: address,
+            timestamp: msEdges[0]?.ts || new Date(),
+            status: 'Success',
+          },
+        };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `MetaSleuth address flow failed: ${error.message}`,
+      );
+    }
+
+    return {
+      nodes: [],
+      edges: [],
+      metadata: {
+        address: address,
+        status: 'No data found',
+      },
+    };
   }
 
   private computeLayout(nodes: any[], edges: any[]) {
@@ -626,15 +705,15 @@ export class TransactionService {
     }
   }
 }
-        return 'ETH';
-      case 'bnb':
-        return 'BNB';
-      case 'base':
-        return 'ETH';
-      case 'arbitrum':
-        return 'ETH';
-      default:
-        return 'ETH';
-    }
-  }
-}
+//         return 'ETH';
+//       case 'bnb':
+//         return 'BNB';
+//       case 'base':
+//         return 'ETH';
+//       case 'arbitrum':
+//         return 'ETH';
+//       default:
+//         return 'ETH';
+//     }
+//   }
+// }
