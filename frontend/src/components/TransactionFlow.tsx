@@ -426,7 +426,7 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
       <div 
         ref={containerRef} 
         id="graph" 
-        className="w-full h-full"
+        className="w-full h-full pt-20"
         style={{ cursor: 'grab' }}
       />
 

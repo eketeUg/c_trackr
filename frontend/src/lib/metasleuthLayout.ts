@@ -91,6 +91,7 @@ export const generateMetaSleuthDot = (mainAddress: string, data: { nodes: any[],
     bgcolor="#16181D"
     nodesep=1.5
     ranksep=2.5
+    pad="0.5,1.5"
     node [style="filled", fontname="Inter,Poppins-Regular"]
     edge [arrowhead="vee", arrowsize="0.75", fontname="Inter,Poppins-Regular"]
   `;
