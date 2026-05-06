@@ -218,7 +218,7 @@ const TransactionFlow: React.FC<TransactionFlowProps> = ({ data, targetAddress, 
             fit: true,
             zoom: true,
           })
-          .transition(() => d3.transition().duration(0)) // Disable transitions for faster/reliable updates
+          .transition(() => (d3.transition() as any).duration(0)) // Disable transitions for faster/reliable updates
           .renderDot(dot)
           .on('end', () => {
             setIsLoading(false);
